@@ -1,4 +1,18 @@
-<p>home works!</p>
+<section>
+	<form [formGroup]="mainForm">
+		<div>
+			<input formControlName="abstractIn">
+		</div>
+	</form>
+	<div>
+		<p>@for (content of completion.sections; track $index) {
+			<span [style.color]="$index == 0 ? 'red' : 'blue'"> {{content.text}}</span>
+		}</p>
+	</div>
+
+</section>
 <button (click)="getCompletion()">click</button>
-<p>title: {{test.title}}</p>
-<p>content: {{test.text}}</p>
+<pre>{{mainForm.value | json}}</pre>
+<pre>
+	{{completion | json}}
+</pre>
