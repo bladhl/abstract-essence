@@ -1,4 +1,41 @@
 /* You can add global styles to this file, and also import other style files */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+/* * {
+  font-family: 'Nunito';
+} */
+
 :root {
-	color-scheme: light dark;
+  color-scheme: light dark;
+  --colour-0: #168aad;
+  --colour-1: #34a0a4;
+  --colour-2: #52b69a;
+  --colour-3: #76c893;
+  --colour-4: #6d597a;
+  --colour-5: #b56576;
+  --colour-6: #e56b6f;
+  --colour-7: #eaac8b;
+  --colour-8: #7cf6fd;
+  --colour-9: #317ac7;
+  --colour-10: #fcf9bf;
+  --colour-11: #707d9d;
+  --colour-custom-white: #fff;
+  --colour-border-default: #30363d;
+  --colour-border-default-light: #d0d7de;
+  --colour-btn-border: rgba(31, 35, 40, 0.15);
+}
+
+body {
+  font-family: Roboto, 'Helvetica Neue', sans-serif;
+}
+
+.btn-primary {
+  @apply mx-2 h-9 w-[8.5rem] rounded-lg bg-[var(--colour-5)] text-white text-nowrap font-medium;
+}
+
+.btn-secondary {
+  @apply mx-2 h-9 w-[8.5rem] rounded-lg border border-[var(--colour-border-default-light)] font-medium;
 }
