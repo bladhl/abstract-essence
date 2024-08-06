@@ -1,18 +1,27 @@
 <section>
-	<form [formGroup]="mainForm">
-		<div>
-			<input formControlName="abstractIn">
-		</div>
-	</form>
-	<div>
-		<p>@for (content of completion.sections; track $index) {
-			<span [style.color]="$index == 0 ? 'red' : 'blue'"> {{content.text}}</span>
-		}</p>
-	</div>
-
+  <form [formGroup]="mainForm">
+    <div>
+      <input formControlName="abstractIn" />
+    </div>
+  </form>
+  <div>
+    <p>
+      @for (section of completion.sections; track section.uuid) {
+      <span> {{ section.text }}</span>
+      }
+    </p>
+  </div>
+  <div class="flex flex-row gap-2">
+    @for (section of completion.sections; track section.uuid; let index=$index) {
+    <div class="flex flex-row">
+      <div class="rounded-full bg-[var(--colour-2)] w-5 h-5"></div>
+      <span>{{ section.sectionName }}</span>
+    </div>
+    }
+  </div>
 </section>
-<button (click)="getCompletion()">click</button>
-<pre>{{mainForm.value | json}}</pre>
+<button class="btn-primary" (click)="getCompletion()">click</button>
+<pre>{{ mainForm.value | json }}</pre>
 <pre>
-	{{completion | json}}
+	{{ completion | json }}
 </pre>
