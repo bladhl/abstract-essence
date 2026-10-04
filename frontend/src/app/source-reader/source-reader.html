@@ -1,0 +1,101 @@
+<section class="source-panel" aria-labelledby="source-heading">
+  <div class="section-heading">
+    <div>
+      <p class="eyebrow">ANNOTATED SOURCE</p>
+      <h2 id="source-heading">Follow the author's words</h2>
+    </div>
+    <span class="badge">Extracted text</span>
+  </div>
+  <div class="pagination">
+    <button
+      class="quiet"
+      (click)="pageChange.emit(page() - 1)"
+      [disabled]="page() <= 1"
+      aria-label="Previous page"
+    >
+      ←
+    </button>
+    <span
+      >PDF page <strong>{{ page() }}</strong> of {{ pages().length
+      }}<small>{{ pageAnnotations().length }} linked annotations</small></span
+    >
+    <button
+      class="quiet"
+      (click)="pageChange.emit(page() + 1)"
+      [disabled]="page() >= pages().length"
+      aria-label="Next page"
+    >
+      →
+    </button>
+  </div>
+  <p class="small muted source-instruction">
+    Select a marked passage to explore its role. Labels and explanations are AI interpretations, not
+    the author's labels.
+  </p>
+  <div
+    #sourceText
+    class="source-text"
+    tabindex="0"
+    aria-label="Extracted page text"
+    (mouseup)="captureSelection()"
+    (keyup)="captureSelection()"
+  >
+    @for (part of parts(); track part.start) {
+      @if (part.annotations.length) {
+        <mark
+          [class]="'annotation-mark role-' + part.annotations[0].role"
+          [class.source-citation]="part.cited"
+          ><button
+            class="source-annotation"
+            [attr.aria-label]="label(part.annotations)"
+            [attr.aria-pressed]="isActive(part.annotations)"
+            [attr.data-active]="isActive(part.annotations)"
+            (click)="choose(part.annotations)"
+          >
+            {{ part.text }}
+          </button></mark
+        >
+      } @else if (part.cited) {
+        <mark class="source-citation">{{ part.text }}</mark>
+      } @else {
+        {{ part.text }}
+      }
+    }
+    @if (!text()) {
+      <p>No extractable text on this page. It may be scanned or image-only.</p>
+    }
+  </div>
+  @if (repeated()) {
+    <p class="notice small">
+      An excerpt repeats on this page. Linked occurrences share an explanation; the AI did not
+      identify a unique occurrence.
+    </p>
+  }
+  @if (capped()) {
+    <p class="notice small">
+      To keep this page responsive, only the first 30 occurrences of each repeated excerpt are
+      marked. All source text is retained.
+    </p>
+  }
+  <p class="muted small">
+    Physical PDF pages. This is extracted text, not an overlay on the original PDF. Tables, formulas
+    and layout may be incomplete; verify the original. No OCR.
+  </p>
+  <details class="excerpt-picker">
+    <summary>Make a source-linked note</summary>
+    <label
+      >Exact excerpt from this page<textarea
+        [formField]="quoteForm.quote"
+        rows="3"
+        placeholder="Select text above, or paste a short excerpt (8–1,200 characters)."
+      ></textarea>
+    </label>
+    <button
+      class="secondary"
+      (click)="useExcerpt()"
+      [disabled]="draft().quote.trim().length < 8 || draft().quote.length > 1200"
+    >
+      Use excerpt in notebook
+    </button>
+  </details>
+</section>

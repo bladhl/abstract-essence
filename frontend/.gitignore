@@ -8,7 +8,6 @@
 
 # Node
 /node_modules
-node_modules/
 npm-debug.log
 yarn-error.log
 
@@ -27,18 +26,23 @@ yarn-error.log
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
+!.vscode/mcp.json
 .history/*
 
 # Miscellaneous
 /.angular/cache
-.atl/
 .sass-cache/
 /connect.lock
 /coverage
 /libpeerconnection.log
 testem.log
 /typings
+__screenshots__/
 
 # System files
 .DS_Store
 Thumbs.db
+
+# Browser test artifacts
+/test-results/
+/playwright-report/

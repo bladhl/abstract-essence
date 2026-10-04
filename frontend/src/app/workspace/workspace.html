@@ -1,0 +1,337 @@
+<a class="skip-link" href="#main">Skip to workspace</a>
+<div class="app-shell">
+  <aside class="sidebar" aria-label="Workspace navigation">
+    <a class="brand" href="/" aria-label="Abstract Essence home"
+      ><span class="brand-mark" aria-hidden="true">ae</span
+      ><span>abstract<br /><strong>essence</strong></span></a
+    >
+    <p class="sidebar-caption">A PLACE TO THINK DEEPLY</p>
+    <nav aria-label="Research tools">
+      <button
+        [class.active]="view() === 'reading'"
+        [attr.aria-current]="view() === 'reading' ? 'page' : null"
+        (click)="navigate('reading')"
+      >
+        <span aria-hidden="true">▤</span> Reading room</button
+      ><button [class.active]="view() === 'notebook'" (click)="navigate('notebook')">
+        <span aria-hidden="true">✎</span> My notebook</button
+      ><button [class.active]="view() === 'compare'" (click)="navigate('compare')">
+        <span aria-hidden="true">▥</span> Compare readings</button
+      ><button [class.active]="view() === 'connections'" (click)="navigate('connections')">
+        <span aria-hidden="true">⌘</span> Connections
+      </button>
+    </nav>
+    <div class="library-heading">
+      <h2>Your library</h2>
+      <span>{{ documents().length }}</span>
+    </div>
+    <div class="document-list">
+      @for (doc of documents(); track doc.id) {
+        <button [class.selected]="detail()?.document?.id === doc.id" (click)="select(doc.id)">
+          <span class="file-icon" aria-hidden="true">PDF</span
+          ><span
+            >{{ doc.title }}<small>{{ doc.total_pages }} pages</small></span
+          >
+        </button>
+      } @empty {
+        <p class="muted small">Your next insight starts with a document.</p>
+      }
+    </div>
+    <div class="sidebar-foot">
+      <span class="local-dot"></span> Single local workspace
+      <p>Your sources. Your judgment.</p>
+    </div>
+  </aside>
+  <div class="workspace-main">
+    <header class="topbar">
+      <span class="breadcrumb"
+        >Workspace <span aria-hidden="true">/</span>
+        {{
+          view() === 'reading'
+            ? 'Reading room'
+            : view() === 'notebook'
+              ? 'My notebook'
+              : view() === 'compare'
+                ? 'Compare readings'
+                : 'Connections'
+        }}</span
+      >
+      <div class="topbar-actions">
+        <button
+          class="theme-toggle"
+          [attr.aria-pressed]="theme.current() === 'dark'"
+          (click)="theme.toggle()"
+        >
+          <span aria-hidden="true">{{ theme.current() === 'dark' ? '☾' : '☼' }}</span>
+          Dark theme
+        </button>
+        <label class="upload-button"
+          ><span aria-hidden="true">＋</span> Import PDF<input
+            type="file"
+            accept="application/pdf,.pdf"
+            (change)="importFile($event)"
+            [disabled]="busy()"
+            aria-label="Import PDF"
+        /></label>
+      </div>
+    </header>
+    <main id="main">
+      <div class="page-heading">
+        <p class="eyebrow">FROM READING TO UNDERSTANDING</p>
+        <h1>
+          {{
+            view() === 'reading'
+              ? 'See how the argument is built.'
+              : view() === 'notebook'
+                ? 'Make the learning your own.'
+                : view() === 'compare'
+                  ? 'Put ideas in conversation.'
+                  : 'Find the thread between ideas.'
+          }}
+        </h1>
+        <p>Explore the reasoning. Follow the evidence. Build your own perspective.</p>
+      </div>
+      <div class="status-line" role="status">{{ status() }}</div>
+      @if (error()) {
+        <div class="error-banner" role="alert">
+          {{ error() }} <button class="quiet" (click)="reload()">Reconnect</button>
+        </div>
+      }
+      @if (view() === 'connections') {
+        <app-connections [documents]="documents()" [rows]="connections()" (changed)="reload()" />
+      } @else if (view() === 'compare') {
+        <section class="surface">
+          <p class="eyebrow">STRUCTURED COMPARISON</p>
+          <h2>Look across saved readings</h2>
+          <p class="muted">
+            Compare interpretations, not quality scores. Each reading keeps its source scope and
+            provider.
+          </p>
+          @if (comparison().length < 2) {
+            <div class="empty-small">Save at least two AI readings to compare them here.</div>
+          } @else {
+            <div class="form-row">
+              <label
+                >First reading<select [formField]="comparisonForm.left">
+                  <option value="">Choose a saved reading</option>
+                  @for (a of comparison(); track a.id) {
+                    <option [value]="a.id">
+                      {{ title(a.document_id) }} · pp. {{ a.page_start }}–{{ a.page_end }} ·
+                      {{ a.provider }}
+                    </option>
+                  }
+                </select></label
+              ><label
+                >Second reading<select [formField]="comparisonForm.right">
+                  <option value="">Choose a saved reading</option>
+                  @for (a of comparison(); track a.id) {
+                    <option [value]="a.id">
+                      {{ title(a.document_id) }} · pp. {{ a.page_start }}–{{ a.page_end }} ·
+                      {{ a.provider }}
+                    </option>
+                  }
+                </select></label
+              >
+            </div>
+            @if (left(); as a) {
+              @if (right(); as b) {
+                <div class="table-scroll">
+                  <table>
+                    <caption>
+                      Assistant interpretations — verify each against its source
+                    </caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Reading lens</th>
+                        <th scope="col">
+                          {{ title(a.document_id)
+                          }}<small
+                            >{{ a.provider }} / {{ a.model }} · pp. {{ a.page_start }}–{{
+                              a.page_end
+                            }}</small
+                          >
+                        </th>
+                        <th scope="col">
+                          {{ title(b.document_id)
+                          }}<small
+                            >{{ b.provider }} / {{ b.model }} · pp. {{ b.page_start }}–{{
+                              b.page_end
+                            }}</small
+                          >
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (lens of lenses; track lens) {
+                        <tr>
+                          <th scope="row">{{ lensTitles[lens] }}</th>
+                          <td>{{ interpretation(a, lens) }}</td>
+                          <td>{{ interpretation(b, lens) }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              }
+            }
+          }
+        </section>
+      } @else if (detail(); as current) {
+        <section class="document-heading">
+          <div>
+            <span class="badge">RESEARCH DOCUMENT</span>
+            <h2>{{ current.document.title }}</h2>
+            <p class="small muted">
+              {{ current.document.total_pages }} physical PDF pages ·
+              {{ current.analyses.length }} saved readings · {{ current.notes.length }} notes
+            </p>
+          </div>
+          <div class="document-actions">
+            <button class="quiet" (click)="exportDocument()">Export work</button
+            ><button class="quiet danger" (click)="confirmDelete.set(true)">Delete</button>
+          </div>
+        </section>
+        @if (confirmDelete()) {
+          <div class="notice" role="alert">
+            <p>
+              Delete this document, extracted pages, readings, notes and connections? Export first
+              if you need a copy. Provider-retained data is not deleted.
+            </p>
+            <button class="danger" (click)="deleteDocument()">Delete permanently</button>
+            <button class="quiet" (click)="confirmDelete.set(false)">Keep document</button>
+          </div>
+        }
+        @if (view() === 'reading') {
+          <app-reading-panel
+            [detail]="current"
+            [choices]="choices()"
+            [citation]="citation()"
+            (cite)="showCitation($event)"
+            (annotate)="annotate($event)"
+            (saved)="refreshDetail()"
+          />
+        } @else {
+          <section class="surface notebook">
+            <p class="eyebrow">YOUR THINKING, LINKED TO EVIDENCE</p>
+            <h2>Notes, corrections & applications</h2>
+            <p class="muted">
+              Return to the reading room to select an excerpt, or paste an exact passage below. Your
+              interpretation is kept separate from the source and AI.
+            </p>
+            <div class="form-row">
+              <label
+                >Note type<select [formField]="noteForm.kind">
+                  <option value="note">Reading note</option>
+                  <option value="correction">Correction to AI interpretation</option>
+                  <option value="application">Apply to my research</option>
+                  <option value="attempt">My explanation / attempt</option>
+                </select></label
+              ><label>Physical PDF page<input type="number" [formField]="noteForm.page" /></label>
+            </div>
+            <label
+              >Author's exact excerpt<textarea
+                rows="3"
+                [formField]="noteForm.quote"
+                placeholder="8–1,200 characters from the source page"
+              ></textarea></label
+            ><label
+              >Your thinking<textarea
+                rows="4"
+                [formField]="noteForm.text"
+                placeholder="What would you question, correct, or apply to your own project? Maximum 6,000 characters."
+              ></textarea></label
+            ><button
+              class="primary"
+              (click)="saveNote()"
+              [disabled]="
+                busy() ||
+                !noteModel().text.trim() ||
+                noteModel().text.length > 6000 ||
+                noteModel().quote.trim().length < 8
+              "
+            >
+              Save source-linked note
+            </button>
+            <div class="notes-list">
+              @for (note of current.notes; track note.id) {
+                <article class="note">
+                  <span class="badge">{{ note.kind }}</span>
+                  <p class="eyebrow">AUTHOR'S WORDS · PAGE {{ note.page }}</p>
+                  <blockquote>{{ note.quote }}</blockquote>
+                  <p class="eyebrow">YOUR THINKING</p>
+                  <p>{{ note.text }}</p>
+                  <button
+                    class="citation-button"
+                    (click)="
+                      view.set('reading'); showCitation({ page: note.page, quote: note.quote })
+                    "
+                  >
+                    View source</button
+                  ><button class="quiet danger" (click)="removeNote(note.id)">Delete note</button>
+                </article>
+              } @empty {
+                <p class="muted">No notes yet. A thoughtful question is a good place to begin.</p>
+              }
+            </div>
+          </section>
+        }
+      } @else {
+        <section class="welcome">
+          <div class="book-illustration" aria-hidden="true">
+            <div class="paper back"></div>
+            <div class="paper front">
+              <span>THE QUESTION</span><i></i><i></i><i></i>
+              <div class="paper-highlight"></div>
+              <i></i><i></i><b>?</b>
+            </div>
+            <span class="orbit">↗</span>
+          </div>
+          <p class="eyebrow">A NEW WAY TO READ CLOSELY</p>
+          <h2>Not another pile of papers.<br />A practice of understanding.</h2>
+          <p>
+            Bring a paper or thesis. Explore what the author argues,<br class="desktop-only" />
+            how they support it, and what you can learn from it.
+          </p>
+          <label class="primary upload-button"
+            >Import your first PDF <span aria-hidden="true">↗</span
+            ><input
+              type="file"
+              accept="application/pdf,.pdf"
+              aria-label="Import your first PDF"
+              (change)="importFile($event)"
+              [disabled]="busy()"
+          /></label>
+          <p class="small muted">
+            Up to 30 MB / 1,500 pages · PDF text stays in your local workspace until you explicitly
+            ask AI.
+          </p>
+          <div class="lens-grid">
+            <div>
+              <span>01</span>
+              <h3>Find the problem</h3>
+              <p>What matters, and why?</p>
+            </div>
+            <div>
+              <span>02</span>
+              <h3>Question the method</h3>
+              <p>Does it answer the question?</p>
+            </div>
+            <div>
+              <span>03</span>
+              <h3>Follow the evidence</h3>
+              <p>What can we really conclude?</p>
+            </div>
+            <div>
+              <span>04</span>
+              <h3>Trace the argument</h3>
+              <p>How do the ideas connect?</p>
+            </div>
+          </div>
+        </section>
+      }
+      <footer class="main-footer">
+        Published does not mean unquestionable. AI does not replace your judgment.
+      </footer>
+    </main>
+  </div>
+</div>

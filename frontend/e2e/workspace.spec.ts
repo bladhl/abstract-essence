@@ -1,0 +1,601 @@
+import { test, expect, type Page } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
+
+const quote = 'The pilot included twenty volunteers.';
+const passages = [
+  'Research question: how do guided annotations affect understanding?',
+  quote,
+  'Participants used a guided reading map.',
+  'Scores were higher in the annotated group.',
+  'The convenience sample does not establish causality.',
+  quote,
+];
+const sourceText = passages.join('\n');
+const docs = ['first', 'second'].map((id) => ({
+  id,
+  title: `${id} pilot`,
+  filename: `${id}.pdf`,
+  total_pages: 2,
+  created_at: '',
+}));
+const analysis = (id: string) => ({
+  id: `analysis-${id}`,
+  document_id: id,
+  provider: 'openai',
+  model: 'test-model',
+  page_start: 1,
+  page_end: 1,
+  attempt: 'The pilot explores the question but cannot establish causality.',
+  created_at: '',
+  output: {
+    insights: ['problem', 'method', 'evidence', 'argument'].map((lens) => ({
+      lens,
+      author_excerpt: { page: 1, quote },
+      interpretation: `${lens}: a preliminary investigation.`,
+      limitation: 'The sample does not establish causality.',
+    })),
+    learning_feedback: 'You identified an important limitation.',
+    next_question: 'Which competing explanation remains?',
+  },
+});
+
+const guidedAnalysis = (id: string) => ({
+  ...analysis(id),
+  id: `map-${id}`,
+  attempt: '',
+  output: {
+    ...analysis(id).output,
+    reading_map: {
+      version: 'annotated-reading-v1',
+      overview:
+        'The pilot connects a reading question with guided annotation and preliminary evidence, not a causal proof.',
+      annotations: [
+        {
+          role: 'problem',
+          title: 'The question driving the study',
+          citation: { page: 1, quote: passages[0] },
+        },
+        {
+          role: 'contribution',
+          title: 'A guided reading contribution',
+          citation: { page: 1, quote: passages[2] },
+        },
+        { role: 'approach', title: 'Sampling the pilot', citation: { page: 1, quote } },
+        {
+          role: 'evidence',
+          title: 'A preliminary result',
+          citation: { page: 1, quote: passages[3] },
+        },
+        { role: 'limits', title: 'No causal claim', citation: { page: 1, quote: passages[4] } },
+        {
+          role: 'approach',
+          title: 'A second role for the passage',
+          citation: { page: 1, quote: passages[2] },
+        },
+      ].map((annotation) => ({
+        ...annotation,
+        explanation: `This passage performs the ${annotation.role} role in the selected argument.`,
+        caveat: 'An interpretation is not a verdict.',
+        question: 'What alternative explanation remains?',
+      })),
+      gaps: [],
+    },
+  },
+});
+
+async function mockWorkspace(page: Page, configured = true, saved = true, withThinking = false) {
+  const details = Object.fromEntries(
+    docs.map((doc) => [
+      doc.id,
+      {
+        document: doc,
+        pages: [
+          { number: 1, text: sourceText },
+          { number: 2, text: 'A larger study is required.' },
+        ],
+        analyses: saved ? [analysis(doc.id)] : [],
+        notes: [],
+      },
+    ]),
+  );
+  const connections: object[] = [];
+  const feedback: object[] = [];
+  await page.route('**/api/**', async (route) => {
+    const request = route.request(),
+      path = new URL(request.url()).pathname;
+    let result: unknown;
+    if (path === '/api/config')
+      result = {
+        choices: configured
+          ? [
+              { provider: 'openai', model: 'test-model' },
+              { provider: 'google', model: 'test-model' },
+              ...(withThinking
+                ? [
+                    {
+                      provider: 'google',
+                      model: 'gemini-3.8-flash',
+                      thinking_levels: ['default', 'low', 'medium', 'high'],
+                    },
+                    {
+                      provider: 'openai',
+                      model: 'gpt-6-luna',
+                      thinking_levels: ['default', 'low', 'medium', 'high', 'xhigh', 'max'],
+                    },
+                  ]
+                : []),
+            ]
+          : [],
+      };
+    else if (path === '/api/documents') {
+      if (request.method() === 'POST') {
+        const body = request.postDataJSON();
+        const doc = {
+          id: 'imported',
+          title: body.title,
+          filename: body.filename,
+          total_pages: body.total_pages,
+          created_at: '',
+        };
+        docs.push(doc);
+        details[doc.id] = { document: doc, pages: body.pages, analyses: [], notes: [] };
+        result = doc;
+      } else result = docs;
+    } else if (path.startsWith('/api/documents/')) result = details[path.split('/')[3]];
+    else if (path === '/api/reading/analyses') {
+      const body = request.postDataJSON();
+      expect(body.consent).toBe(true);
+      expect(body.attempt).toBe('');
+      expect(body.mode).toBe('guided');
+      expect(body).not.toHaveProperty('destination');
+      const guided = guidedAnalysis(body.document_id);
+      result = {
+        ...guided,
+        ...body,
+        output: { ...guided.output, request_settings: { thinking: body.thinking ?? 'default' } },
+      };
+      details[body.document_id].analyses.push(result as ReturnType<typeof analysis>);
+    } else if (path.endsWith('/feedback')) {
+      if (request.method() === 'POST')
+        feedback.push({
+          id: 'reply',
+          ...request.postDataJSON(),
+          output: {
+            request_context: request.postDataJSON().context,
+            request_settings: { thinking: request.postDataJSON().thinking ?? 'default' },
+            answer: 'The pilot cannot establish causality.',
+            citations: [{ page: 1, quote }],
+            limitation: 'Selected pages only.',
+          },
+        });
+      result = request.method() === 'POST' ? feedback.at(-1) : feedback;
+    } else if (path === '/api/learning/notes') {
+      const body = request.postDataJSON();
+      result = { id: 'note', ...body };
+      details[body.document_id].notes.push(result as never);
+    } else if (path === '/api/learning/connections') {
+      if (request.method() === 'POST')
+        connections.push({ id: 'connection', ...request.postDataJSON() });
+      result = request.method() === 'POST' ? connections.at(-1) : connections;
+    } else throw new Error(`Unexpected test API request: ${request.method()} ${path}`);
+    await route.fulfill({ status: request.method() === 'POST' ? 201 : 200, json: result });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'first pilot 2 pages' }).click();
+}
+
+test('document-first map requires consent, links highlights and contextual questions, then learning notes', async ({
+  page,
+}) => {
+  await mockWorkspace(page, true, false);
+  const analyze = page.getByRole('button', { name: 'Create reading map', exact: true });
+  await expect(analyze).toBeDisabled();
+  await expect(page.getByLabel('What problem is being studied')).toHaveCount(0);
+  await page.getByLabel('AI destination').selectOption('openai:test-model');
+  await page.getByRole('checkbox').check();
+  await page.getByLabel('Last PDF page').fill('1');
+  await expect(page.getByRole('checkbox')).not.toBeChecked();
+  await page.getByRole('checkbox').check();
+  await page.getByLabel('AI destination').selectOption('google:test-model');
+  await expect(page.getByRole('checkbox')).not.toBeChecked();
+  await page.getByRole('checkbox').check();
+  await analyze.click();
+  await expect(page.getByRole('heading', { name: 'How this argument works' })).toBeVisible();
+  await expect(page.locator('.argument-card')).toHaveCount(6);
+  const source = page.locator('app-source-reader');
+  await source
+    .getByRole('button', {
+      name: 'Contribution: A guided reading contribution; Approach: A second role for the passage',
+    })
+    .click();
+  await expect(page.getByText('This passage has more than one possible role.')).toBeVisible();
+  await page
+    .getByRole('button', { name: 'Approach: A second role for the passage', exact: true })
+    .click();
+  await expect(
+    page
+      .locator('.annotation-inspector')
+      .getByRole('heading', { name: 'A second role for the passage' }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Evidence', exact: true }).click();
+  await expect(source.locator('.source-annotation')).toHaveCount(1);
+  await source.getByRole('button', { name: 'Evidence: A preliminary result' }).focus();
+  await source.getByRole('button', { name: 'Evidence: A preliminary result' }).press('Enter');
+  await expect(
+    page.locator('.annotation-inspector').getByText('This passage performs the evidence role'),
+  ).toBeVisible();
+  await page.getByLabel('Question or challenge').fill('Does this design establish causality?');
+  await expect(page.getByRole('button', { name: 'Ask with source evidence' })).toBeDisabled();
+  await page.getByRole('checkbox').check();
+  await page.getByRole('button', { name: 'Ask with source evidence' }).click();
+  await expect(
+    page.getByText('The pilot cannot establish causality.', { exact: true }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'All annotations', exact: true }).click();
+  await expect(page.getByText('An excerpt repeats on this page.')).toBeVisible();
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await page.getByRole('button', { name: 'Explain in my own words' }).click();
+  await expect(page.getByLabel('Note type')).toHaveValue('attempt');
+  await page
+    .getByLabel('Your thinking')
+    .fill('I understand that the sample limits what can be concluded.');
+  await page.getByRole('button', { name: 'Save source-linked note' }).click();
+  await expect(page.getByText('Source-linked note saved.')).toBeVisible();
+});
+
+test('comparison and manual bibliographic connections', async ({ page }) => {
+  await mockWorkspace(page);
+  await page.getByRole('button', { name: 'Compare readings', exact: true }).click();
+  await page.getByLabel('First reading').selectOption('analysis-first');
+  await page.getByLabel('Second reading').selectOption('analysis-second');
+  await expect(page.getByRole('table')).toBeVisible();
+  await expect(page.getByRole('row')).toHaveCount(5);
+  await page.getByRole('button', { name: 'Connections', exact: true }).click();
+  await page.getByRole('combobox', { name: 'From', exact: true }).selectOption('first');
+  await page.getByRole('combobox', { name: 'To', exact: true }).selectOption('second');
+  await page.getByLabel('Relationship', { exact: true }).fill('contrasts with');
+  await page
+    .getByLabel('Why are they connected?')
+    .fill('The methods address similar questions with different samples.');
+  await page.getByRole('button', { name: 'Save connection' }).click();
+  await expect(page.getByText('YOUR CONNECTION', { exact: true })).toBeVisible();
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});
+
+test('mobile reading is accessible and no provider is honestly unavailable', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockWorkspace(page, false);
+  await expect(page.getByText('No AI provider configured')).toBeVisible();
+  await page.getByRole('button', { name: 'Analyze another scope' }).click();
+  await expect(
+    page.getByRole('button', { name: 'Create reading map', exact: true }),
+  ).toBeDisabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});
+
+test('dark is the first-visit default; the keyboard toggle persists both choices', async ({
+  page,
+}) => {
+  await page.emulateMedia({ colorScheme: 'light' });
+  await mockWorkspace(page);
+  const toggle = page.getByRole('button', { name: 'Dark theme' });
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  expect(await page.locator('html').evaluate((el) => getComputedStyle(el).colorScheme)).toBe(
+    'dark',
+  );
+
+  await toggle.focus();
+  await expect(toggle).toBeFocused();
+  expect(await toggle.evaluate((el) => getComputedStyle(el).outlineWidth)).toBe('3px');
+  await toggle.press('Space');
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  expect(await page.locator('html').evaluate((el) => getComputedStyle(el).colorScheme)).toBe(
+    'light',
+  );
+  await page.reload();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  await toggle.press('Enter');
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  await page.reload();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+});
+
+for (const theme of ['dark', 'light'] as const) {
+  test(`${theme} reading retains measured contrast, highlights and accessible states`, async ({
+    page,
+  }) => {
+    if (theme === 'light')
+      await page.addInitScript(() =>
+        localStorage.setItem('abstract-essence:reading-theme', 'light'),
+      );
+    await mockWorkspace(page, false);
+    await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+    await expect(page.getByText('No AI provider configured')).toBeVisible();
+    await page.getByRole('button', { name: 'Analyze another scope' }).click();
+    await expect(
+      page.getByRole('button', { name: 'Create reading map', exact: true }),
+    ).toBeDisabled();
+
+    const ratios = await page.evaluate(() => {
+      const styles = getComputedStyle(document.documentElement);
+      function luminance(value: string) {
+        const parts = value
+          .trim()
+          .replace('#', '')
+          .match(/../g)!
+          .map((part) => parseInt(part, 16) / 255);
+        const [r, g, b] = parts.map((v) =>
+          v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4,
+        );
+        return r * 0.2126 + g * 0.7152 + b * 0.0722;
+      }
+      function ratio(first: string, second: string) {
+        const a = luminance(styles.getPropertyValue(`--${first}`));
+        const b = luminance(styles.getPropertyValue(`--${second}`));
+        return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+      }
+      return {
+        source: ratio('reading-text', 'surface'),
+        markProblem: ratio('annotation-text', 'mark-problem'),
+        markContribution: ratio('annotation-text', 'mark-contribution'),
+        markApproach: ratio('annotation-text', 'mark-approach'),
+        markEvidence: ratio('annotation-text', 'mark-evidence'),
+        markLimits: ratio('annotation-text', 'mark-limits'),
+        roleProblem: ratio('role-problem', 'surface'),
+        roleContribution: ratio('role-contribution', 'surface'),
+        roleApproach: ratio('role-approach', 'surface'),
+        roleEvidence: ratio('role-evidence', 'surface'),
+        roleLimits: ratio('role-limits', 'surface'),
+        highlightedSource: ratio('highlight-text', 'highlight-background'),
+        body: ratio('text', 'surface'),
+        muted: ratio('muted', 'surface-hover'),
+        placeholder: ratio('placeholder', 'field-background'),
+        primary: ratio('on-accent', 'accent'),
+        primaryHover: ratio('on-accent', 'accent-hover'),
+        error: ratio('error-text', 'error-background'),
+        notice: ratio('notice-text', 'notice-background'),
+        selection: ratio('selection-text', 'selection-background'),
+        fieldBorder: ratio('control-border', 'field-background'),
+        buttonBorder: ratio('control-border', 'surface'),
+        hoverBorder: ratio('control-border', 'surface-hover'),
+        scopeBorder: ratio('control-border', 'surface-subtle'),
+        focus: ratio('focus', 'surface-hover'),
+      };
+    });
+    expect(ratios.source).toBeGreaterThanOrEqual(7);
+    for (const [state, ratio] of Object.entries(ratios))
+      expect(ratio, state).toBeGreaterThanOrEqual(
+        state.startsWith('mark') ? 7 : state.endsWith('Border') || state === 'focus' ? 3 : 4.5,
+      );
+
+    await page.getByText('Saved readings (1)', { exact: true }).click();
+    await page.getByRole('button', { name: 'Pages 1–1 · openai / test-model' }).click();
+    await page.locator('.argument-card').first().click();
+    await expect(page.locator('mark').first()).toContainText(quote);
+    await page.getByRole('button', { name: 'Analyze another scope' }).click();
+    await page.getByLabel('Last PDF page').fill('0');
+    await expect(
+      page.getByText('Choose a valid range with readable text within the limits.'),
+    ).toBeVisible();
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+
+    // The 15px application root increased to 30px exercises text resizing, not device zoom.
+    await page.addStyleTag({ content: 'html { font-size: 30px; }' });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await expect(page.getByRole('button', { name: 'Dark theme' })).toBeVisible();
+  });
+
+  test(`${theme} preference is applied before Angular loads`, async ({ page }) => {
+    if (theme === 'light')
+      await page.addInitScript(() =>
+        localStorage.setItem('abstract-essence:reading-theme', 'light'),
+      );
+    await page.route('**/*.js', (route) => route.abort());
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+    expect(await page.locator('html').evaluate((el) => getComputedStyle(el).colorScheme)).toBe(
+      theme,
+    );
+    expect(await page.locator('html').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(
+      theme === 'dark' ? 'rgb(24, 29, 26)' : 'rgb(247, 248, 244)',
+    );
+  });
+}
+
+test('invalid or blocked preference storage falls back safely without disabling the toggle', async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    localStorage.setItem('abstract-essence:reading-theme', 'unexpected'),
+  );
+  await mockWorkspace(page);
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'localStorage', {
+      get() {
+        throw new DOMException('Blocked', 'SecurityError');
+      },
+    });
+  });
+  await page.reload();
+  const toggle = page.getByRole('button', { name: 'Dark theme' });
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+});
+
+function syntheticPdf(): Buffer {
+  const content = `BT /F1 10 Tf 40 750 Td 14 TL ${passages.map((line) => `(${line.replace(/[\\()]/g, '\\$&')}) Tj T*`).join(' ')} ET`;
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
+  ];
+  let pdf = '%PDF-1.4\n';
+  const offsets = [0];
+  for (const [index, object] of objects.entries()) {
+    offsets.push(pdf.length);
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  }
+  const xref = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets
+    .slice(1)
+    .map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`)
+    .join('')}trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  return Buffer.from(pdf);
+}
+
+test('verified thinking selection resets consent, reaches analysis and questions, and preserves legacy disclosure', async ({
+  page,
+}, testInfo) => {
+  const analysisRequests: Record<string, unknown>[] = [];
+  const questionRequests: Record<string, unknown>[] = [];
+  page.on('request', (request) => {
+    if (request.method() !== 'POST') return;
+    if (request.url().endsWith('/api/reading/analyses'))
+      analysisRequests.push(request.postDataJSON());
+    if (request.url().endsWith('/feedback')) questionRequests.push(request.postDataJSON());
+  });
+  await mockWorkspace(page, true, true, true);
+  await expect(page.getByText('Thinking: Not recorded for this earlier result')).toBeVisible();
+  await page.getByRole('button', { name: 'Analyze another scope' }).click();
+  await page
+    .getByRole('combobox', { name: 'AI destination', exact: true })
+    .selectOption('google:gemini-3.8-flash');
+  const thinking = page.getByRole('combobox', { name: 'Thinking', exact: true });
+  await expect(thinking.locator('option')).toHaveText([
+    'Provider default',
+    'Low',
+    'Medium',
+    'High',
+  ]);
+  await thinking.selectOption('medium');
+  await expect(page.locator('#setup-thinking-help')).toContainText('Thinking: Medium');
+  await page.screenshot({ path: testInfo.outputPath('thinking-controls.png'), fullPage: true });
+  const analysisConsent = page.locator('.analysis-setup').getByRole('checkbox');
+  await analysisConsent.check();
+  await thinking.selectOption('high');
+  await expect(page.locator('#setup-thinking-help')).toContainText('Thinking: High');
+  await expect(analysisConsent).not.toBeChecked();
+  await expect(
+    page.getByRole('button', { name: 'Create reading map', exact: true }),
+  ).toBeDisabled();
+  await page
+    .getByRole('combobox', { name: 'AI destination', exact: true })
+    .selectOption('openai:test-model');
+  await expect(thinking).toHaveCount(0);
+  await page
+    .getByRole('combobox', { name: 'AI destination', exact: true })
+    .selectOption('google:gemini-3.8-flash');
+  await expect(thinking).toHaveValue('default');
+  await thinking.selectOption('medium');
+  await analysisConsent.check();
+  await page.getByRole('button', { name: 'Create reading map', exact: true }).click();
+  expect(analysisRequests).toHaveLength(1);
+  expect(analysisRequests[0]).toMatchObject({
+    provider: 'google',
+    model: 'gemini-3.8-flash',
+    thinking: 'medium',
+  });
+  expect(analysisRequests[0]).not.toHaveProperty('thinking_levels');
+  expect(analysisRequests[0]).not.toHaveProperty('destination');
+  await expect(page.locator('.argument-overview')).toContainText('Thinking: Medium');
+  await thinking.selectOption('low');
+  await expect(page.locator('#question-thinking-help')).toContainText('Question thinking: Low');
+  await page.getByLabel('Question or challenge').fill('Why is this method appropriate?');
+  const questionConsent = page.locator('.passage-question').getByRole('checkbox');
+  await questionConsent.check();
+  await thinking.selectOption('high');
+  await expect(page.locator('#question-thinking-help')).toContainText('Question thinking: High');
+  await expect(questionConsent).not.toBeChecked();
+  await questionConsent.check();
+  await page.getByRole('button', { name: 'Ask with source evidence' }).click();
+  expect(questionRequests).toHaveLength(1);
+  expect(questionRequests[0]).toMatchObject({ thinking: 'high' });
+  expect(questionRequests[0]).not.toHaveProperty('thinking_levels');
+  expect(questionRequests[0]).toHaveProperty('context.citation');
+  await expect(page.locator('.feedback')).toContainText('Thinking: High');
+  await expect(page.locator('.argument-overview')).toContainText('Thinking: Medium');
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});
+
+test('Luna Max reaches analysis and questions through the native controls', async ({ page }) => {
+  const requests: Record<string, unknown>[] = [];
+  page.on('request', (request) => {
+    if (
+      request.method() === 'POST' &&
+      (request.url().endsWith('/api/reading/analyses') || request.url().endsWith('/feedback'))
+    )
+      requests.push(request.postDataJSON());
+  });
+  await mockWorkspace(page, true, false, true);
+  await page
+    .getByRole('combobox', { name: 'AI destination', exact: true })
+    .selectOption('openai:gpt-6-luna');
+  const thinking = page.getByRole('combobox', { name: 'Thinking', exact: true });
+  await thinking.selectOption('max');
+  await expect(page.locator('#setup-thinking-help')).toContainText('Thinking: Max');
+  await page.locator('.analysis-setup').getByRole('checkbox').check();
+  await page.getByRole('button', { name: 'Create reading map', exact: true }).click();
+  await expect(page.locator('.argument-overview')).toContainText('Thinking: Max');
+  await expect(thinking).toHaveValue('max');
+  await page.getByLabel('Question or challenge').fill('Which alternative explanation remains?');
+  await page.locator('.passage-question').getByRole('checkbox').check();
+  await page.getByRole('button', { name: 'Ask with source evidence' }).click();
+  await expect(page.locator('.feedback')).toContainText('Thinking: Max');
+  expect(requests).toHaveLength(2);
+  for (const request of requests) {
+    expect(request).toMatchObject({
+      provider: 'openai',
+      model: 'gpt-6-luna',
+      thinking: 'max',
+      consent: true,
+    });
+    expect(request).not.toHaveProperty('thinking_levels');
+    expect(request).not.toHaveProperty('destination');
+  }
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});
+
+test('PDF import opens a bounded local-first setup, never an automatic provider call', async ({
+  page,
+}) => {
+  let calls = 0;
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && request.url().endsWith('/api/reading/analyses')) calls++;
+  });
+  await mockWorkspace(page, true, false);
+  await page.getByLabel('Import PDF', { exact: true }).setInputFiles({
+    name: 'synthetic-reading.pdf',
+    mimeType: 'application/pdf',
+    buffer: syntheticPdf(),
+  });
+  await expect(page.getByText('Imported 1 pages. Nothing was sent to AI.')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Create an annotated reading' })).toBeVisible();
+  expect(calls).toBe(0);
+  await expect(
+    page.getByRole('button', { name: 'Create reading map', exact: true }),
+  ).toBeDisabled();
+  await page.getByLabel('AI destination').selectOption('google:test-model');
+  await page.getByRole('checkbox').check();
+  await page.getByRole('button', { name: 'Create reading map', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'How this argument works' })).toBeVisible();
+  expect(calls).toBe(1);
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});

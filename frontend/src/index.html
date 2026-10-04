@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <title>Frontend</title>
+    <base href="/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#181d1a" />
+    <style>
+      html {
+        color-scheme: dark;
+        background: #181d1a;
+      }
+      html[data-theme='light'] {
+        color-scheme: light;
+        background: #f7f8f4;
+      }
+    </style>
+    <script>
+      // Apply the explicit preference before styles and Angular load. Dark is the default.
+      try {
+        if (localStorage.getItem('abstract-essence:reading-theme') === 'light') {
+          document.documentElement.dataset.theme = 'light';
+          document.querySelector('meta[name="theme-color"]').content = '#f7f8f4';
+        }
+      } catch {
+        // Storage access is optional; the default theme remains usable.
+      }
+    </script>
+    <link rel="icon" type="image/x-icon" href="favicon.ico" />
+  </head>
+  <body>
+    <app-root></app-root>
+  </body>
+</html>

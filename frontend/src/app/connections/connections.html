@@ -1,0 +1,60 @@
+<section class="surface">
+  <p class="eyebrow">BUILD YOUR OWN MAP</p>
+  <h2>Connections with a reason</h2>
+  <p class="muted">
+    Link documents you have actually read. These relationships are your interpretation, not
+    discovered or verified citations.
+  </p>
+  @if (documents().length < 2) {
+    <div class="empty-small">Import at least two documents to make a connection.</div>
+  } @else {
+    <div class="form-row">
+      <label
+        >From<select [formField]="fields.source_id">
+          <option value="">Choose a document</option>
+          @for (doc of documents(); track doc.id) {
+            <option [value]="doc.id">{{ doc.title }}</option>
+          }
+        </select></label
+      ><label
+        >To<select [formField]="fields.target_id">
+          <option value="">Choose a document</option>
+          @for (doc of documents(); track doc.id) {
+            <option [value]="doc.id">{{ doc.title }}</option>
+          }
+        </select></label
+      >
+    </div>
+    <label
+      >Relationship<input
+        [formField]="fields.relationship"
+        placeholder="For example: contrasts with, extends, uses the same method" /></label
+    ><label
+      >Why are they connected?<textarea
+        rows="3"
+        [formField]="fields.evidence"
+        placeholder="Describe the evidence, with page references where possible."
+      ></textarea></label
+    ><button class="primary" (click)="save()" [disabled]="busy()">Save connection</button>
+  }
+  @if (error()) {
+    <p role="alert" class="error">{{ error() }}</p>
+  }
+  <div class="connection-list">
+    @for (row of rows(); track row.id) {
+      <article class="connection">
+        <p class="eyebrow">YOUR CONNECTION</p>
+        <h3>
+          {{ title(row.source_id) }} <span aria-hidden="true">→</span> {{ title(row.target_id) }}
+        </h3>
+        <span class="badge">{{ row.relationship }}</span>
+        <p>{{ row.evidence }}</p>
+        <button class="quiet danger" (click)="remove(row.id)">Remove connection</button>
+      </article>
+    } @empty {
+      <p class="muted">
+        No connections yet. A useful relationship explains more than shared keywords.
+      </p>
+    }
+  </div>
+</section>
