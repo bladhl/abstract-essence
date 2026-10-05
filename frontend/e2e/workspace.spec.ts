@@ -459,7 +459,6 @@ test('dark interactive targets are at least 44 by 44 CSS pixels (WCAG 2.5.5)', a
     page.getByRole('button', { name: 'Previous page' }),
     page.getByRole('button', { name: 'Next page' }),
     page.locator('.reading-context > summary'),
-    page.locator('.excerpt-picker > summary'),
     page.getByRole('button', { name: 'Export work' }),
   ];
   for (const target of targets) {
@@ -881,8 +880,12 @@ test('selecting text offers Paste an excerpt, which loads it into the editable e
   ).toBe(true);
   await toolbar.getByRole('button', { name: 'Paste an excerpt' }).click();
   await expect(toolbar).toBeHidden();
-  await expect(page.locator('.excerpt-picker')).toHaveAttribute('open', '');
   const box = page.getByLabel('Exact excerpt from this page');
   await expect(box).toBeFocused();
   await expect(box).toHaveValue(selected);
+  await page
+    .getByRole('group', { name: 'Edit excerpt' })
+    .getByRole('button', { name: 'Cancel' })
+    .click();
+  await expect(box).toBeHidden();
 });

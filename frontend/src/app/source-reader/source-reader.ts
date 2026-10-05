@@ -38,6 +38,7 @@ export class SourceReader {
   readonly askAbout = output<Citation>();
   readonly toolbar = signal<{ top: number; left: number; quote: string } | null>(null);
   readonly copied = signal('');
+  readonly editing = signal(false);
   readonly draft = signal({ quote: '' });
   readonly quoteForm = form(this.draft);
   readonly text = computed(() => this.pages().find((p) => p.number === this.page())?.text ?? '');
@@ -68,9 +69,10 @@ export class SourceReader {
     );
   });
   readonly source = viewChild<ElementRef<HTMLElement>>('sourceText');
-  readonly excerptPicker = viewChild<ElementRef<HTMLDetailsElement>>('excerptPicker');
   readonly excerptBox = viewChild<ElementRef<HTMLTextAreaElement>>('excerptBox');
   constructor() {
+    // The editor only exists after "Paste an excerpt", so focus it as soon as it renders.
+    afterRenderEffect(() => this.excerptBox()?.nativeElement.focus());
     afterRenderEffect(() => {
       const id = this.activeId();
       this.page();
@@ -146,9 +148,7 @@ export class SourceReader {
     if (!quote) return;
     this.draft.set({ quote });
     this.dismissToolbar();
-    const picker = this.excerptPicker()?.nativeElement;
-    if (picker) picker.open = true;
-    this.excerptBox()?.nativeElement.focus();
+    this.editing.set(true);
   }
   async copyCitation() {
     const quote = this.toolbar()?.quote;
@@ -162,5 +162,6 @@ export class SourceReader {
   }
   useExcerpt() {
     this.annotate.emit({ page: this.page(), quote: this.draft().quote.trim() });
+    this.editing.set(false);
   }
 }

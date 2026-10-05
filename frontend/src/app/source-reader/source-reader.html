@@ -65,8 +65,9 @@
     </div>
     <div class="sheet-notes">
       <p class="small muted source-instruction">
-        Select a marked passage to explore its role, or select any text to add a note, copy a
-        citation or ask AI. Labels and explanations are AI interpretations, not the author's labels.
+        Select a marked passage to explore its role, or select any text to add a note, paste an
+        excerpt, copy a citation or ask AI. Labels and explanations are AI interpretations, not the
+        author's labels.
       </p>
       @if (repeated()) {
         <p class="notice small">
@@ -84,24 +85,31 @@
         Physical PDF pages. This is extracted text, not an overlay on the original PDF. Tables,
         formulas and layout may be incomplete; verify the original. No OCR.
       </p>
-      <details #excerptPicker class="excerpt-picker">
-        <summary><app-icon name="pencil" />Paste an excerpt</summary>
-        <label
-          >Exact excerpt from this page<textarea
-            #excerptBox
-            [formField]="quoteForm.quote"
-            rows="3"
-            placeholder="Paste a short excerpt (8–1,200 characters)."
-          ></textarea>
-        </label>
-        <button
-          class="secondary"
-          (click)="useExcerpt()"
-          [disabled]="draft().quote.trim().length < 8 || draft().quote.length > 1200"
+      @if (editing()) {
+        <div
+          class="excerpt-picker"
+          role="group"
+          aria-label="Edit excerpt"
+          (keydown.escape)="editing.set(false)"
         >
-          Use excerpt in notebook
-        </button>
-      </details>
+          <label
+            >Exact excerpt from this page<textarea
+              #excerptBox
+              [formField]="quoteForm.quote"
+              rows="3"
+              placeholder="A short excerpt from this page (8–1,200 characters)."
+            ></textarea>
+          </label>
+          <button
+            class="secondary"
+            (click)="useExcerpt()"
+            [disabled]="draft().quote.trim().length < 8 || draft().quote.length > 1200"
+          >
+            Use excerpt in notebook
+          </button>
+          <button class="quiet" (click)="editing.set(false)">Cancel</button>
+        </div>
+      }
     </div>
   </div>
   <div class="pager">
