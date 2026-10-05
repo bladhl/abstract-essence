@@ -1982,17 +1982,10 @@ td {
   border-radius: 6px;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
   pointer-events: none;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.12s;
+  /* display:none, not visibility:hidden: a hidden absolute box still widens the sheet's scroll area. */
+  display: none;
 }
 .source-text .annotation-mark[data-preview]:hover::after,
 .source-text .annotation-mark[data-preview]:focus-visible::after {
-  opacity: 1;
-  visibility: visible;
-}
-@media (prefers-reduced-motion: reduce) {
-  .source-text .annotation-mark[data-preview]::after {
-    transition: none;
-  }
+  display: block;
 }
