@@ -854,3 +854,35 @@ for (const width of [1280, 390]) {
     expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   });
 }
+
+test('selecting text offers Paste an excerpt, which loads it into the editable excerpt', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1024, height: 720 });
+  await mockWorkspace(page);
+  await expect(page.locator('.annotation-mark').first()).toBeVisible();
+  const selected = await page.locator('.source-text').evaluate((el) => {
+    const node = [...el.childNodes].find(
+      (child) => child.nodeType === Node.TEXT_NODE && child.textContent!.trim().length > 20,
+    )!;
+    const start = node.textContent!.search(/\S/);
+    const range = document.createRange();
+    range.setStart(node, start);
+    range.setEnd(node, start + 20);
+    getSelection()!.removeAllRanges();
+    getSelection()!.addRange(range);
+    el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    return range.toString().trim();
+  });
+  const toolbar = page.getByRole('toolbar', { name: 'Selected passage actions' });
+  await expect(toolbar).toBeVisible();
+  expect(
+    await page.locator('.source-sheet').evaluate((sheet) => sheet.scrollWidth <= sheet.clientWidth),
+  ).toBe(true);
+  await toolbar.getByRole('button', { name: 'Paste an excerpt' }).click();
+  await expect(toolbar).toBeHidden();
+  await expect(page.locator('.excerpt-picker')).toHaveAttribute('open', '');
+  const box = page.getByLabel('Exact excerpt from this page');
+  await expect(box).toBeFocused();
+  await expect(box).toHaveValue(selected);
+});

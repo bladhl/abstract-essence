@@ -24,6 +24,9 @@
         (mousedown)="$event.preventDefault()"
       >
         <button class="quiet" (click)="addNote()"><app-icon name="pencil" />Add note</button>
+        <button class="quiet" (click)="editExcerpt()">
+          <app-icon name="note" />Paste an excerpt
+        </button>
         <button class="quiet" (click)="copyCitation()">
           <app-icon name="quote" />{{ copied() || 'Copy citation' }}
         </button>
@@ -81,10 +84,11 @@
         Physical PDF pages. This is extracted text, not an overlay on the original PDF. Tables,
         formulas and layout may be incomplete; verify the original. No OCR.
       </p>
-      <details class="excerpt-picker">
+      <details #excerptPicker class="excerpt-picker">
         <summary><app-icon name="pencil" />Paste an excerpt</summary>
         <label
           >Exact excerpt from this page<textarea
+            #excerptBox
             [formField]="quoteForm.quote"
             rows="3"
             placeholder="Paste a short excerpt (8–1,200 characters)."

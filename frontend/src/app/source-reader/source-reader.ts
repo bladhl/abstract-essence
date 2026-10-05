@@ -68,6 +68,8 @@ export class SourceReader {
     );
   });
   readonly source = viewChild<ElementRef<HTMLElement>>('sourceText');
+  readonly excerptPicker = viewChild<ElementRef<HTMLDetailsElement>>('excerptPicker');
+  readonly excerptBox = viewChild<ElementRef<HTMLTextAreaElement>>('excerptBox');
   constructor() {
     afterRenderEffect(() => {
       const id = this.activeId();
@@ -121,7 +123,7 @@ export class SourceReader {
     this.copied.set('');
     this.toolbar.set({
       top: Math.max(0, range.top - bounds.top + sheet.scrollTop - 58),
-      left: Math.min(Math.max(0, range.left - bounds.left), Math.max(0, sheet.clientWidth - 280)),
+      left: Math.min(Math.max(0, range.left - bounds.left), Math.max(0, sheet.clientWidth - 420)),
       quote: quote.slice(0, 1200),
     });
   }
@@ -138,6 +140,15 @@ export class SourceReader {
     const quote = this.toolbar()?.quote;
     if (quote) this.askAbout.emit({ page: this.page(), quote });
     this.dismissToolbar();
+  }
+  editExcerpt() {
+    const quote = this.toolbar()?.quote;
+    if (!quote) return;
+    this.draft.set({ quote });
+    this.dismissToolbar();
+    const picker = this.excerptPicker()?.nativeElement;
+    if (picker) picker.open = true;
+    this.excerptBox()?.nativeElement.focus();
   }
   async copyCitation() {
     const quote = this.toolbar()?.quote;
