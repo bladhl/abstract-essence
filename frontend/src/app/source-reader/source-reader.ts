@@ -12,10 +12,11 @@ import {
 import { form, FormField } from '@angular/forms/signals';
 import { roleTitles, type AnnotationView, type Citation, type SourcePage } from '../models';
 import { annotatedSegments, excerptRanges, visibleOccurrencesPerExcerpt } from '../pdf';
+import { UiIcon, roleIcons } from '../ui-icon';
 
 @Component({
   selector: 'app-source-reader',
-  imports: [FormField],
+  imports: [FormField, UiIcon],
   templateUrl: './source-reader.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -32,6 +33,7 @@ export class SourceReader {
   readonly quoteForm = form(this.draft);
   readonly text = computed(() => this.pages().find((p) => p.number === this.page())?.text ?? '');
   readonly roleTitles = roleTitles;
+  readonly roleIcons = roleIcons;
   readonly pageAnnotations = computed(() =>
     this.annotations().filter((a) => a.citation.page === this.page()),
   );
@@ -59,10 +61,18 @@ export class SourceReader {
     afterRenderEffect(() => {
       const id = this.activeId();
       this.page();
-      if (id)
-        this.source()
-          ?.nativeElement.querySelector<HTMLElement>('[data-active="true"]')
-          ?.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+      const container = this.source()?.nativeElement;
+      const passage = container?.querySelector<HTMLElement>(
+        '.annotation-mark[aria-pressed="true"]',
+      );
+      if (!id || !container || !passage || container.scrollHeight <= container.clientHeight) return;
+      const bounds = container.getBoundingClientRect();
+      const target = passage.getBoundingClientRect();
+      if (target.top < bounds.top || target.bottom > bounds.bottom) {
+        container.scrollTo({
+          top: Math.max(0, container.scrollTop + target.top - bounds.top - 20),
+        });
+      }
     });
   }
   label(annotations: AnnotationView[]): string {

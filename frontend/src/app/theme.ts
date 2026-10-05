@@ -38,6 +38,6 @@ export class Theme {
     this.document.documentElement.dataset['theme'] = theme;
     this.document
       .querySelector('meta[name="theme-color"]')
-      ?.setAttribute('content', theme === 'dark' ? '#181d1a' : '#f7f8f4');
+      ?.setAttribute('content', theme === 'dark' ? '#1a1a1a' : '#f2f5fa');
   }
 }

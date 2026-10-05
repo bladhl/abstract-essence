@@ -1,13 +1,17 @@
 import {
+  afterRenderEffect,
   ChangeDetectionStrategy,
   Component,
   computed,
+  DOCUMENT,
+  ElementRef,
   inject,
   input,
   linkedSignal,
   output,
   resource,
   signal,
+  viewChild,
 } from '@angular/core';
 import { form, FormField } from '@angular/forms/signals';
 import { WorkspaceApi, errorMessage } from '../workspace-api';
@@ -26,8 +30,12 @@ import {
 } from '../models';
 import { initialScope, sourceAnnotations } from '../reading-map';
 import { SourceReader } from '../source-reader/source-reader';
+import { UiIcon, roleIcons } from '../ui-icon';
 
 type Filter = AnnotationRole | 'all';
+type PendingReading =
+  | { kind: 'analysis'; documentId: string }
+  | { kind: 'question'; documentId: string; readingId: string };
 interface ScopeDraft {
   destination: string;
   page_start: number;
@@ -39,12 +47,15 @@ interface DraftSource {
 }
 @Component({
   selector: 'app-reading-panel',
-  imports: [FormField, SourceReader],
+  imports: [FormField, SourceReader, UiIcon],
   templateUrl: './reading-panel.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ReadingPanel {
   private readonly api = inject(WorkspaceApi);
+  private readonly document = inject(DOCUMENT);
+  private readonly explanationHeading = viewChild<ElementRef<HTMLElement>>('explanationHeading');
+  private readonly requestSettings = viewChild<ElementRef<HTMLDetailsElement>>('requestSettings');
   readonly detail = input.required<DocumentDetail>();
   readonly choices = input.required<ProviderChoice[]>();
   readonly citation = input<Citation | null>(null);
@@ -53,8 +64,35 @@ export class ReadingPanel {
   readonly annotate = output<Citation & { kind?: string }>();
   readonly lensTitles = lensTitles;
   readonly roleTitles = roleTitles;
+  readonly roleIcons = roleIcons;
   readonly thinkingTitles = thinkingTitles;
-  readonly busy = signal(false);
+  readonly pending = signal<PendingReading | null>(null);
+  readonly busy = computed(() => this.pending() !== null);
+  readonly processingCurrent = computed(() => {
+    const request = this.pending();
+    return (
+      request?.documentId === this.detail().document.id &&
+      (request.kind === 'analysis' || request.readingId === this.current()?.id)
+    );
+  });
+  readonly isAnalyzing = computed(
+    () => this.processingCurrent() && this.pending()?.kind === 'analysis',
+  );
+  readonly isAsking = computed(
+    () => this.processingCurrent() && this.pending()?.kind === 'question',
+  );
+  readonly processingLabel = computed(() => {
+    if (!this.pending()) return '';
+    if (!this.processingCurrent())
+      return 'An earlier request is still finishing. You can keep reading.';
+    return this.isAnalyzing()
+      ? 'Creating your reading map…'
+      : 'Preparing your source-linked answer…';
+  });
+  readonly mobilePane = linkedSignal<'source' | 'explanation'>(() => {
+    this.detail().document.id;
+    return 'source';
+  });
   readonly error = linkedSignal(() => {
     this.detail().document.id;
     return '';
@@ -198,8 +236,24 @@ export class ReadingPanel {
       this.questionDraft().question.length <= 2000,
   );
   readonly message = errorMessage;
+  constructor() {
+    afterRenderEffect(() => {
+      if (
+        this.mobilePane() === 'explanation' &&
+        this.document.defaultView?.matchMedia?.('(max-width: 960px)').matches
+      )
+        this.explanationHeading()?.nativeElement.focus({ preventScroll: true });
+    });
+  }
   destinationKey(choice: ProviderChoice) {
     return `${choice.provider}:${choice.model}`;
+  }
+  editRequestSettings() {
+    const settings = this.requestSettings()?.nativeElement;
+    if (!settings) return;
+    settings.open = true;
+    settings.scrollIntoView({ block: 'nearest' });
+    settings.querySelector<HTMLSelectElement>('select')?.focus({ preventScroll: true });
   }
   thinkingDescription(settings?: RequestSettings): string {
     return settings
@@ -219,11 +273,13 @@ export class ReadingPanel {
     this.activeId.set(annotation.id);
     this.overlapIds.set(ids);
     this.page.set(annotation.citation.page);
+    this.mobilePane.set('explanation');
   }
   chooseRole(role: Filter) {
     this.filter.set(role);
     const first = this.visibleAnnotations()[0];
     if (first) this.selectAnnotation([first.id]);
+    this.mobilePane.set('source');
   }
   note(kind: string) {
     const active = this.active();
@@ -238,7 +294,7 @@ export class ReadingPanel {
     const choice = this.choice()!;
     const id = this.detail().document.id;
     const draft = this.draft();
-    this.busy.set(true);
+    this.pending.set({ kind: 'analysis', documentId: id });
     this.error.set('');
     try {
       const result = await this.api.analyze({
@@ -254,17 +310,19 @@ export class ReadingPanel {
       });
       if (this.detail().document.id !== id) return;
       this.current.set(result);
+      this.mobilePane.set('source');
       this.setupOpen.set(false);
       this.page.set(sourceAnnotations(result)[0]?.citation.page ?? result.page_start);
       this.saved.emit();
     } catch (e) {
       if (this.detail().document.id === id) this.error.set(errorMessage(e));
     } finally {
-      this.busy.set(false);
+      this.pending.set(null);
     }
   }
   openAnalysis(item: Analysis) {
     this.current.set(item);
+    this.mobilePane.set('source');
     this.error.set('');
     this.setupOpen.set(false);
     this.page.set(sourceAnnotations(item)[0]?.citation.page ?? item.page_start);
@@ -276,7 +334,7 @@ export class ReadingPanel {
     const id = this.detail().document.id;
     const active = this.active();
     const question = this.questionDraft().question.trim();
-    this.busy.set(true);
+    this.pending.set({ kind: 'question', documentId: id, readingId: item.id });
     this.error.set('');
     try {
       await this.api.ask(item.id, {
@@ -295,7 +353,7 @@ export class ReadingPanel {
       if (this.detail().document.id === id && this.current()?.id === item.id)
         this.error.set(errorMessage(e));
     } finally {
-      this.busy.set(false);
+      this.pending.set(null);
     }
   }
 }

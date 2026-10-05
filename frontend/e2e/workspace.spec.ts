@@ -181,6 +181,10 @@ async function mockWorkspace(page: Page, configured = true, saved = true, withTh
     await route.fulfill({ status: request.method() === 'POST' ? 201 : 200, json: result });
   });
   await page.goto('/');
+  // On mobile the sidebar stays closed until the library toggle opens it.
+  await page.locator('#research-tools').waitFor({ state: 'attached' });
+  const libraryToggle = page.getByRole('button', { name: 'Open library', exact: true });
+  if (await libraryToggle.isVisible()) await libraryToggle.click();
   await page.getByRole('button', { name: 'first pilot 2 pages' }).click();
 }
 
@@ -202,6 +206,7 @@ test('document-first map requires consent, links highlights and contextual quest
   await analyze.click();
   await expect(page.getByRole('heading', { name: 'How this argument works' })).toBeVisible();
   await expect(page.locator('.argument-card')).toHaveCount(6);
+  await page.locator('.reading-context > summary').click();
   const source = page.locator('app-source-reader');
   await source
     .getByRole('button', {
@@ -218,7 +223,7 @@ test('document-first map requires consent, links highlights and contextual quest
       .getByRole('heading', { name: 'A second role for the passage' }),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Evidence', exact: true }).click();
-  await expect(source.locator('.source-annotation')).toHaveCount(1);
+  await expect(source.locator('.annotation-mark')).toHaveCount(1);
   await source.getByRole('button', { name: 'Evidence: A preliminary result' }).focus();
   await source.getByRole('button', { name: 'Evidence: A preliminary result' }).press('Enter');
   await expect(
@@ -365,16 +370,35 @@ for (const theme of ['dark', 'light'] as const) {
         hoverBorder: ratio('control-border', 'surface-hover'),
         scopeBorder: ratio('control-border', 'surface-subtle'),
         focus: ratio('focus', 'surface-hover'),
+        selectedText: ratio('selection-text', 'selection-background'),
+        selectedProblem: ratio('annotation-selected-text', 'mark-selected-problem'),
+        selectedContribution: ratio('annotation-selected-text', 'mark-selected-contribution'),
+        selectedApproach: ratio('annotation-selected-text', 'mark-selected-approach'),
+        selectedEvidence: ratio('annotation-selected-text', 'mark-selected-evidence'),
+        selectedLimits: ratio('annotation-selected-text', 'mark-selected-limits'),
+        chipProblem: ratio('role-problem', 'chip-problem'),
+        chipContribution: ratio('role-contribution', 'chip-contribution'),
+        chipApproach: ratio('role-approach', 'chip-approach'),
+        chipEvidence: ratio('role-evidence', 'chip-evidence'),
+        chipLimits: ratio('role-limits', 'chip-limits'),
+        mutedOnBackground: ratio('muted', 'background'),
+        accentTextOnSurface: ratio('accent-text', 'surface'),
+        errorBorder: ratio('error-border', 'error-background'),
       };
     });
     expect(ratios.source).toBeGreaterThanOrEqual(7);
-    for (const [state, ratio] of Object.entries(ratios))
+    // Dark targets WCAG 2.2 AAA (7:1 text, 3:1 control borders and focus). Light keeps its
+    // earlier AA thresholds until it is redesigned.
+    for (const [state, ratio] of Object.entries(ratios)) {
+      const textMinimum = theme === 'dark' || state.startsWith('mark') ? 7 : 4.5;
       expect(ratio, state).toBeGreaterThanOrEqual(
-        state.startsWith('mark') ? 7 : state.endsWith('Border') || state === 'focus' ? 3 : 4.5,
+        state.endsWith('Border') || state === 'focus' ? 3 : textMinimum,
       );
+    }
 
     await page.getByText('Saved readings (1)', { exact: true }).click();
     await page.getByRole('button', { name: 'Pages 1–1 · openai / test-model' }).click();
+    await page.locator('.reading-context > summary').click();
     await page.locator('.argument-card').first().click();
     await expect(page.locator('mark').first()).toContainText(quote);
     await page.getByRole('button', { name: 'Analyze another scope' }).click();
@@ -390,8 +414,8 @@ for (const theme of ['dark', 'light'] as const) {
     );
     expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 
-    // The 15px application root increased to 30px exercises text resizing, not device zoom.
-    await page.addStyleTag({ content: 'html { font-size: 30px; }' });
+    // Doubling the 16px root exercises text resizing, not device zoom.
+    await page.addStyleTag({ content: 'html { font-size: 32px; }' });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
@@ -410,10 +434,52 @@ for (const theme of ['dark', 'light'] as const) {
       theme,
     );
     expect(await page.locator('html').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(
-      theme === 'dark' ? 'rgb(24, 29, 26)' : 'rgb(247, 248, 244)',
+      theme === 'dark' ? 'rgb(26, 26, 26)' : 'rgb(242, 245, 250)',
     );
   });
 }
+
+test('dark interactive targets are at least 44 by 44 CSS pixels (WCAG 2.5.5)', async ({ page }) => {
+  await mockWorkspace(page);
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await page.getByRole('button', { name: 'Analyze another scope' }).click();
+  const targets = [
+    page.getByRole('button', { name: 'Collapse sidebar' }),
+    page.getByRole('button', { name: 'Dark theme' }),
+    page.locator('.topbar .upload-button'),
+    page.getByRole('button', { name: 'Reading room', exact: true }),
+    page.getByRole('button', { name: 'Compare readings', exact: true }),
+    page.getByRole('searchbox', { name: 'Find a document' }),
+    page.getByRole('button', { name: 'first pilot 2 pages' }),
+    page.getByRole('button', { name: 'Close analysis setup' }),
+    page.getByRole('combobox', { name: 'AI destination' }),
+    page.getByLabel('First PDF page'),
+    page.locator('.analysis-setup label.checkbox'),
+    page.getByRole('button', { name: 'Create reading map', exact: true }),
+    page.getByRole('button', { name: 'Previous page' }),
+    page.getByRole('button', { name: 'Next page' }),
+    page.locator('.reading-context > summary'),
+    page.locator('.excerpt-picker > summary'),
+    page.getByRole('button', { name: 'Export work' }),
+  ];
+  for (const target of targets) {
+    const box = await target.first().boundingBox();
+    const name = await target.first().evaluate((el) => el.outerHTML.slice(0, 80));
+    expect(box, name).not.toBeNull();
+    expect(box!.width, name).toBeGreaterThanOrEqual(44);
+    expect(box!.height, name).toBeGreaterThanOrEqual(44);
+  }
+  await page.getByRole('button', { name: 'Collapse sidebar' }).click();
+  const rail = page.getByRole('navigation', { name: 'Workspace shortcuts' });
+  await expect(rail).toBeVisible();
+  for (const link of await rail.getByRole('button').all()) {
+    const box = await link.boundingBox();
+    expect(box!.width).toBeGreaterThanOrEqual(44);
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+  }
+  await page.getByRole('button', { name: 'Expand sidebar' }).click();
+  await expect(page.getByRole('navigation', { name: 'Research tools' })).toBeVisible();
+});
 
 test('invalid or blocked preference storage falls back safely without disabling the toggle', async ({
   page,
@@ -436,6 +502,72 @@ test('invalid or blocked preference storage falls back safely without disabling 
   await toggle.click();
   await expect(toggle).toHaveAttribute('aria-pressed', 'false');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+});
+
+test('a wrapped passage keeps one inline mark and the sheet never scrolls sideways', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1024, height: 720 });
+  await mockWorkspace(page);
+  const marks = page.locator('.annotation-mark');
+  await expect(marks.first()).toBeVisible();
+  const result = await page.evaluate(() => {
+    const all = [...document.querySelectorAll<HTMLElement>('.annotation-mark')];
+    const sheet = document.querySelector<HTMLElement>('.source-sheet')!;
+    return {
+      inline: all.every((mark) => getComputedStyle(mark).display === 'inline'),
+      wrapped: all.some((mark) => mark.getClientRects().length > 1),
+      fitsSheet: sheet.scrollWidth <= sheet.clientWidth,
+      interactive: all.every(
+        (mark) => mark.getAttribute('role') === 'button' && mark.tabIndex === 0,
+      ),
+    };
+  });
+  expect(result).toEqual({ inline: true, wrapped: true, fitsSheet: true, interactive: true });
+  // Space activates the mark like a button.
+  const mark = marks.first();
+  await mark.focus();
+  await mark.press('Space');
+  await expect(mark).toHaveAttribute('aria-pressed', 'true');
+  // Hard PDF line breaks are joined for display only; the quote still matches across them.
+  expect(await page.locator('.source-text').evaluate((el) => el.textContent!.includes('\n'))).toBe(
+    false,
+  );
+});
+
+test('desktop reading room fills the viewport; only the sheet and inspector scroll', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await mockWorkspace(page);
+  await expect(page.locator('.source-sheet')).toBeVisible();
+  const layout = await page.evaluate(() => {
+    const root = document.scrollingElement!;
+    const overflow = (selector: string) =>
+      getComputedStyle(document.querySelector(selector)!).overflowY;
+    const pager = document.querySelector('.pager')!.getBoundingClientRect();
+    const regions = document.querySelector<HTMLElement>('.reading-regions')!;
+    const main = document.querySelector('.reading-main')!;
+    return {
+      pageFits: root.scrollHeight <= window.innerHeight,
+      sheet: overflow('.source-sheet'),
+      inspector: overflow('.annotation-inspector'),
+      pagerInView: pager.bottom <= window.innerHeight,
+      regionsBounded: regions.offsetHeight <= main.getBoundingClientRect().height * 0.45 + 1,
+    };
+  });
+  expect(layout).toEqual({
+    pageFits: true,
+    sheet: 'auto',
+    inspector: 'auto',
+    pagerInView: true,
+    regionsBounded: true,
+  });
+  const progress = page.getByRole('progressbar', { name: 'Reading progress' });
+  await expect(progress).toHaveAttribute('aria-valuenow', '1');
+  await expect(progress).toHaveAttribute('aria-valuemax', '2');
+  await page.getByRole('button', { name: 'Next page' }).click();
+  await expect(progress).toHaveAttribute('aria-valuenow', '2');
 });
 
 function syntheticPdf(): Buffer {
@@ -473,6 +605,7 @@ test('verified thinking selection resets consent, reaches analysis and questions
     if (request.url().endsWith('/feedback')) questionRequests.push(request.postDataJSON());
   });
   await mockWorkspace(page, true, true, true);
+  await page.locator('.reading-context > summary').click();
   await expect(page.getByText('Thinking: Not recorded for this earlier result')).toBeVisible();
   await page.getByRole('button', { name: 'Analyze another scope' }).click();
   await page
@@ -516,6 +649,7 @@ test('verified thinking selection resets consent, reaches analysis and questions
   expect(analysisRequests[0]).not.toHaveProperty('thinking_levels');
   expect(analysisRequests[0]).not.toHaveProperty('destination');
   await expect(page.locator('.argument-overview')).toContainText('Thinking: Medium');
+  await page.getByRole('button', { name: 'Change AI request settings' }).click();
   await thinking.selectOption('low');
   await expect(page.locator('#question-thinking-help')).toContainText('Question thinking: Low');
   await page.getByLabel('Question or challenge').fill('Why is this method appropriate?');
@@ -554,6 +688,7 @@ test('Luna Max reaches analysis and questions through the native controls', asyn
   await page.locator('.analysis-setup').getByRole('checkbox').check();
   await page.getByRole('button', { name: 'Create reading map', exact: true }).click();
   await expect(page.locator('.argument-overview')).toContainText('Thinking: Max');
+  await page.getByRole('button', { name: 'Change AI request settings' }).click();
   await expect(thinking).toHaveValue('max');
   await page.getByLabel('Question or challenge').fill('Which alternative explanation remains?');
   await page.locator('.passage-question').getByRole('checkbox').check();
@@ -599,3 +734,123 @@ test('PDF import opens a bounded local-first setup, never an automatic provider 
   expect(calls).toBe(1);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
+
+test('mobile study view preserves source position and exposes explanations without an AI request', async ({
+  page,
+}) => {
+  let modelRequests = 0;
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && request.url().includes('/api/reading/')) modelRequests++;
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockWorkspace(page);
+  const source = page.getByLabel('Extracted page text');
+  await expect(source).toBeVisible();
+  expect((await source.boundingBox())!.y).toBeLessThan(844 - 130);
+  const marked = page.locator('.annotation-mark').first();
+  await marked.focus();
+  await marked.press('Enter');
+  await expect(page.getByRole('heading', { name: 'Why this part matters' })).toBeFocused();
+  await expect(source).not.toBeVisible();
+  await page.getByRole('button', { name: 'Read source', exact: true }).click();
+  await expect(source).toBeVisible();
+  await expect(page.locator('.annotation-mark').first()).toHaveAttribute('aria-pressed', 'true');
+  expect(modelRequests).toBe(0);
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});
+
+test('the mobile library can be opened, searched and dismissed by selecting a source', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockWorkspace(page);
+  await expect(page.getByRole('button', { name: 'Open library', exact: true })).toHaveAttribute(
+    'aria-expanded',
+    'false',
+  );
+  await page.getByRole('button', { name: 'Open library', exact: true }).click();
+  await page.getByRole('searchbox', { name: 'Find a document' }).fill('second');
+  await expect(page.getByRole('button', { name: 'first pilot 2 pages' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'second pilot 2 pages' }).click();
+  await expect(page.getByRole('button', { name: 'Open library', exact: true })).toHaveAttribute(
+    'aria-expanded',
+    'false',
+  );
+  await expect(page.locator('.document-heading')).toContainText('second pilot');
+});
+
+test('destination and thinking remain in one request-settings location when setup opens', async ({
+  page,
+}) => {
+  await mockWorkspace(page, true, true, true);
+  await page.getByRole('button', { name: 'Change AI request settings' }).click();
+  await page
+    .getByRole('combobox', { name: 'AI destination', exact: true })
+    .selectOption('openai:gpt-6-luna');
+  await page.getByRole('combobox', { name: 'Thinking', exact: true }).selectOption('max');
+  await expect(page.locator('.request-settings select')).toHaveCount(2);
+  await page.getByRole('button', { name: 'Analyze another scope' }).click();
+  await expect(page.locator('.request-settings select')).toHaveCount(2);
+  await expect(page.getByRole('combobox', { name: 'Thinking', exact: true })).toHaveValue('max');
+  await expect(page.locator('.analysis-setup select')).toHaveCount(0);
+  await expect(page.locator('.passage-question select')).toHaveCount(0);
+});
+
+for (const width of [1280, 390]) {
+  test(`processing remains visible until a real request settles at ${width}px`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width, height: 844 });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await mockWorkspace(page, true, false);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let calls = 0;
+    await page.route('**/api/reading/analyses', async (route) => {
+      calls++;
+      await gate;
+      await route.fulfill({
+        status: 503,
+        json: {
+          detail:
+            "The selected model reached this request's output-token limit before completing the answer. Select fewer pages or choose a lower Thinking level if available, then retry. Your source and saved work are unchanged.",
+        },
+      });
+    });
+    await page
+      .getByRole('combobox', { name: 'AI destination', exact: true })
+      .selectOption('openai:test-model');
+    await page.locator('.analysis-setup').getByRole('checkbox').check();
+    await page.getByRole('button', { name: 'Create reading map', exact: true }).click();
+    const processing = page.locator('.request-processing');
+    await expect(processing).toContainText('Creating your reading map');
+    await expect(processing).toHaveAttribute('role', 'status');
+    const action = page.getByRole('button', { name: 'Creating reading map', exact: false });
+    await expect(action).toBeDisabled();
+    await expect(action).toHaveAttribute('aria-busy', 'true');
+    expect(
+      await processing
+        .locator('.processing-ring')
+        .evaluate((element) => getComputedStyle(element).animationName),
+    ).toBe('none');
+    expect(calls).toBe(1);
+    await page.evaluate(async () => {
+      (document.activeElement as HTMLElement | null)?.blur();
+      window.scrollTo(0, 0);
+      await document.fonts.ready;
+    });
+    await page.screenshot({ path: testInfo.outputPath(`processing-${width}.png`), fullPage: true });
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    release();
+    await expect(processing).toHaveCount(0);
+    await expect(page.getByRole('alert')).toContainText('output-token limit');
+    await expect(
+      page.getByRole('button', { name: 'Create reading map', exact: true }),
+    ).toBeEnabled();
+    await expect(page.locator('.analysis-setup').getByRole('checkbox')).toBeChecked();
+    expect(calls).toBe(1);
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  });
+}

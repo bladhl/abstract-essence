@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  ElementRef,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { form, FormField } from '@angular/forms/signals';
 import { WorkspaceApi, errorMessage } from '../workspace-api';
 import { extractPdf } from '../pdf';
@@ -14,18 +22,34 @@ import {
 import { ReadingPanel } from '../reading-panel/reading-panel';
 import { Connections } from '../connections/connections';
 import { Theme } from '../theme';
+import { UiIcon, type IconName } from '../ui-icon';
 
 type View = 'reading' | 'notebook' | 'compare' | 'connections';
 @Component({
   selector: 'app-workspace',
-  imports: [FormField, ReadingPanel, Connections],
+  imports: [FormField, ReadingPanel, Connections, UiIcon],
   templateUrl: './workspace.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class Workspace {
   private readonly api = inject(WorkspaceApi);
+  private readonly main = viewChild<ElementRef<HTMLElement>>('workspaceMain');
   readonly theme = inject(Theme);
   readonly documents = signal<ResearchDocument[]>([]);
+  readonly libraryOpen = signal(false);
+  readonly navCollapsed = signal(false);
+  readonly tools: { view: View; label: string; icon: IconName }[] = [
+    { view: 'reading', label: 'Reading room', icon: 'book' },
+    { view: 'notebook', label: 'My notebook', icon: 'note' },
+    { view: 'compare', label: 'Compare readings', icon: 'compare' },
+    { view: 'connections', label: 'Connections', icon: 'link' },
+  ];
+  readonly librarySearch = signal({ query: '' });
+  readonly librarySearchForm = form(this.librarySearch);
+  readonly filteredDocuments = computed(() => {
+    const query = this.librarySearch().query.trim().toLowerCase();
+    return this.documents().filter((doc) => doc.title.toLowerCase().includes(query));
+  });
   readonly detail = signal<DocumentDetail | null>(null);
   readonly choices = signal<ProviderChoice[]>([]);
   readonly connections = signal<Connection[]>([]);
@@ -33,6 +57,7 @@ export class Workspace {
   readonly busy = signal(false);
   readonly status = signal('Connecting to your workspace…');
   readonly error = signal('');
+  readonly viewTitle = computed(() => this.tools.find((t) => t.view === this.view())!.label);
   readonly page = signal(1);
   readonly citation = signal<Citation | null>(null);
   readonly confirmDelete = signal(false);
@@ -78,6 +103,8 @@ export class Workspace {
       const detail = await this.api.detail(id);
       if (version !== this.selectionVersion) return;
       this.detail.set(detail);
+      if (this.libraryOpen()) this.main()?.nativeElement.focus({ preventScroll: true });
+      this.libraryOpen.set(false);
       this.page.set(1);
       this.citation.set(null);
       this.noteModel.set({ kind: 'note', quote: '', text: '', page: 1 });
@@ -189,6 +216,7 @@ export class Workspace {
   }
   async navigate(view: View) {
     this.view.set(view);
+    this.libraryOpen.set(false);
     this.error.set('');
     if (view === 'compare') {
       try {

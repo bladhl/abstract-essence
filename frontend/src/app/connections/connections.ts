@@ -1,11 +1,12 @@
 import { ChangeDetectionStrategy, Component, inject, input, output, signal } from '@angular/core';
 import { form, FormField } from '@angular/forms/signals';
+import { UiIcon } from '../ui-icon';
 import { WorkspaceApi, errorMessage } from '../workspace-api';
 import type { Connection, ResearchDocument } from '../models';
 
 @Component({
   selector: 'app-connections',
-  imports: [FormField],
+  imports: [FormField, UiIcon],
   templateUrl: './connections.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

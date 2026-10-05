@@ -1,291 +1,83 @@
-<section class="guided-reading" aria-labelledby="reading-heading">
-  <div class="reading-toolbar">
-    <div>
-      <p class="eyebrow">A MAP, NOT A VERDICT</p>
-      <h2 id="reading-heading">Understand the argument in the source.</h2>
-    </div>
-    @if (current()) {
-      <button
-        class="secondary"
-        (click)="setupOpen.set(!setupOpen())"
-        [attr.aria-expanded]="setupOpen()"
-      >
-        {{ setupOpen() ? 'Close analysis setup' : 'Analyze another scope' }}
-      </button>
-    }
-  </div>
-  @if (!choices().length && current() && !setupOpen()) {
-    <p class="notice">
-      <strong>No AI provider configured</strong> — saved readings and source-linked notes remain
-      available. Configure a key and allowed model on the server to ask AI.
-    </p>
-  }
-  @if (setupOpen()) {
-    <section class="analysis-setup surface" aria-label="Create reading map">
-      <div>
-        <h3>Create an annotated reading</h3>
-        <p class="small muted">
-          AI will connect claims to exact passages. No answer from you is required first. Importing
-          never sends a document to AI.
-        </p>
+<section
+  class="guided-reading"
+  aria-labelledby="reading-heading"
+  [class.explanation-view]="mobilePane() === 'explanation'"
+>
+  <div class="reading-main">
+    <header class="document-heading">
+      <ng-content select=".doc-title" />
+      <div class="document-actions">
+        <ng-content select=".doc-actions" />
+        @if (current()) {
+          <button
+            class="secondary"
+            (click)="setupOpen.set(!setupOpen())"
+            [attr.aria-expanded]="setupOpen()"
+          >
+            {{ setupOpen() ? 'Close analysis setup' : 'Analyze another scope' }}
+          </button>
+        }
       </div>
-      @if (!choices().length) {
-        <div class="notice">
-          <strong>No AI provider configured</strong>
-          <p>
-            Add a server-side key and allowed model, then restart the API. Reading and source-linked
-            notes still work.
-          </p>
-        </div>
-      }
-      <div class="setup-fields" [class.has-thinking]="thinkingLevels().length > 1">
-        <label
-          >AI destination<select [formField]="fields.destination">
-            <option value="">Choose a configured provider / model</option>
-            @for (item of choices(); track destinationKey(item)) {
-              <option [value]="destinationKey(item)">{{ item.provider }} · {{ item.model }}</option>
-            }
-          </select></label
-        >
-        @if (thinkingLevels().length > 1) {
-          <label
-            >Thinking<select
-              [formField]="thinkingFields.thinking"
-              aria-describedby="setup-thinking-help"
+    </header>
+    <div class="reading-toolbar">
+      <h2 id="reading-heading">
+        {{
+          current()
+            ? current()?.output?.reading_map
+              ? 'How this argument works'
+              : 'Your saved four-lens reading'
+            : 'Start with a close reading'
+        }}
+      </h2>
+      @if (current(); as analysis) {
+        <nav class="annotation-filters" aria-label="Annotation categories">
+          <button
+            class="quiet"
+            [attr.aria-pressed]="filter() === 'all'"
+            (click)="chooseRole('all')"
+          >
+            All annotations
+          </button>
+          @for (role of roles(); track role) {
+            <button
+              [class]="'quiet role-chip role-' + role"
+              [attr.aria-pressed]="filter() === role"
+              (click)="chooseRole(role)"
             >
-              @for (level of thinkingLevels(); track level) {
-                <option [value]="level">{{ thinkingTitles[level] }}</option>
+              <app-icon [name]="roleIcons[role]" />{{ roleTitles[role] }}
+            </button>
+          }
+        </nav>
+        <span class="coverage-chip small">{{ coverage(analysis) }}</span>
+      }
+    </div>
+    <div class="reading-regions">
+      <ng-content select=".doc-confirm" />
+      <details #requestSettings class="request-settings" [open]="setupOpen()">
+        <summary>
+          AI request settings<span
+            >{{ choice()?.provider || 'Choose a destination' }} ·
+            {{ thinkingTitles[thinkingDraft().thinking] }}</span
+          >
+        </summary>
+        <div class="request-fields">
+          <label
+            >AI destination<select [formField]="fields.destination">
+              <option value="">Choose a configured provider / model</option>
+              @for (item of choices(); track destinationKey(item)) {
+                <option [value]="destinationKey(item)">
+                  {{ item.provider }} · {{ item.model }}
+                </option>
               }
             </select></label
           >
-        }
-        <label>First PDF page<input type="number" [formField]="fields.page_start" /></label>
-        <label>Last PDF page<input type="number" [formField]="fields.page_end" /></label>
-      </div>
-      <p class="small muted" id="setup-thinking-help">
-        Thinking: {{ thinkingTitles[thinkingDraft().thinking] }}. Only verified levels are offered.
-        Provider default leaves this setting to the model. Higher levels may increase latency and
-        charges; they do not guarantee a correct interpretation.
-      </p>
-      <p class="scope-disclosure">
-        <strong>{{ fullScope() ? 'Full extracted-text coverage' : 'Partial coverage' }}</strong> ·
-        PDF pages {{ draft().page_start }}–{{ draft().page_end }} of
-        {{ detail().document.total_pages }} · {{ scopedCharacters() }} characters.
-      </p>
-      @if (!fullScope()) {
-        <p class="notice small">
-          This is one bounded section, not the whole paper or thesis. Other pages will not be
-          analyzed. Select another range explicitly to extend your reading.
-        </p>
-      }
-      @if (!validScope()) {
-        <p class="error small">Choose a valid range with readable text within the limits.</p>
-      }
-      <p class="small muted">
-        Maximum 20 pages / 60,000 characters per request. Provider charges and retention policies
-        apply; limits are not a monetary budget. No automatic retries across providers.
-      </p>
-      <!-- The control identity follows the exact transmission consented to. -->
-      @for (consent of [consentKey()]; track consent) {
-        <label class="checkbox"
-          ><input type="checkbox" [formField]="consentFields.consent" /><span
-            >I agree to send these selected pages to
-            {{ choice()?.provider || 'the selected provider' }} for analysis. Questions send their
-            saved reading's page scope, AI interpretation, my question and the selected passage
-            context.</span
-          ></label
-        >
-      }
-      <button class="primary" [disabled]="!canAnalyze()" (click)="analyze()">
-        {{ busy() ? 'Linking the argument to your source…' : 'Create reading map' }}
-        <span aria-hidden="true">↗</span>
-      </button>
-    </section>
-  }
-  @if (error()) {
-    <p class="error" role="alert">{{ error() }}</p>
-  }
-  @if (busy()) {
-    <p class="status-line" role="status">
-      Working with the selected source. Your original and existing notes are unchanged.
-    </p>
-  }
-  @if (current(); as analysis) {
-    <section class="argument-overview surface" aria-label="Reading map overview">
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow">ASSISTANT'S READING · VERIFY AGAINST THE SOURCE</p>
-          <h3>
-            {{
-              analysis.output.reading_map
-                ? 'How this argument works'
-                : 'Your saved four-lens reading'
-            }}
-          </h3>
-        </div>
-        <span class="badge">{{ annotations().length }} source links</span>
-      </div>
-      <p class="scope-disclosure">
-        {{ coverage(analysis) }}<br />{{ analysis.provider }} / {{ analysis.model }} ·
-        {{ thinkingDescription(analysis.output.request_settings) }}
-      </p>
-      @if (analysis.output.reading_map; as map) {
-        <p class="map-summary">{{ map.overview }}</p>
-      } @else {
-        <p class="notice small">
-          This earlier reading keeps its original four lenses. The visible links reuse saved
-          excerpts; no contribution or limits annotation was invented.
-        </p>
-      }
-      <nav class="annotation-filters" aria-label="Annotation categories">
-        <button class="quiet" [attr.aria-pressed]="filter() === 'all'" (click)="chooseRole('all')">
-          All annotations
-        </button>
-        @for (role of roles(); track role) {
-          <button
-            [class]="'quiet role-chip role-' + role"
-            [attr.aria-pressed]="filter() === role"
-            (click)="chooseRole(role)"
-          >
-            {{ roleTitles[role] }}
-          </button>
-        }
-      </nav>
-      <div class="argument-cards">
-        @for (annotation of visibleAnnotations(); track annotation.id) {
-          <button
-            [class]="'argument-card role-' + annotation.role"
-            [attr.aria-pressed]="activeId() === annotation.id"
-            (click)="selectAnnotation([annotation.id])"
-          >
-            <span class="role-label">{{ roleTitles[annotation.role] }}</span
-            ><strong>{{ annotation.title }}</strong
-            ><small>View source · PDF page {{ annotation.citation.page }} ↗</small>
-          </button>
-        } @empty {
-          <p class="muted small">
-            No supported source annotations in this selected scope. Missing roles are explained
-            below; they are not evidence of absence from the full document.
-          </p>
-        }
-      </div>
-      @if (analysis.output.reading_map; as map) {
-        @if (map.gaps.length) {
-          <details class="map-gaps" open>
-            <summary>What these pages do not establish ({{ map.gaps.length }})</summary>
-            @for (gap of map.gaps; track gap.role) {
-              <p class="small">
-                <strong>{{ roleTitles[gap.role] }}:</strong> {{ gap.reason }}
-              </p>
-            }
-          </details>
-        }
-      }
-      @if (!analysis.output.reading_map) {
-        @for (insight of analysis.output.insights; track insight.lens) {
-          @if (!insight.author_excerpt) {
-            <p class="notice small">
-              <strong>{{ lensTitles[insight.lens] }}:</strong> No supporting excerpt identified.
-              {{ insight.interpretation }}
-            </p>
-          }
-        }
-      }
-    </section>
-  } @else {
-    <p class="notice small">
-      Your text is local. Create a reading map above when you are ready, or read and make your own
-      notes without AI.
-    </p>
-  }
-  <div class="reading-grid annotated-grid">
-    <app-source-reader
-      [pages]="detail().pages"
-      [page]="page()"
-      [citation]="citation()"
-      [annotations]="visibleAnnotations()"
-      [activeId]="activeId()"
-      (pageChange)="page.set($event)"
-      (annotationSelect)="selectAnnotation($event)"
-      (annotate)="annotate.emit($event)"
-    />
-    <aside class="annotation-inspector surface" aria-labelledby="inspector-heading">
-      <p class="eyebrow">AT THE PASSAGE, NOT AWAY FROM IT</p>
-      <h2 id="inspector-heading">Why this part matters</h2>
-      @if (active(); as selected) {
-        <p class="selected-announcement small" role="status">
-          Selected {{ roleTitles[selected.role] }} · PDF page {{ selected.citation.page }}
-        </p>
-        @if (overlap().length > 1) {
-          <div class="notice small">
-            <p>This passage has more than one possible role. Explore each interpretation:</p>
-            @for (item of overlap(); track item.id) {
-              <button
-                class="quiet"
-                [attr.aria-pressed]="activeId() === item.id"
-                (click)="activeId.set(item.id)"
-              >
-                {{ roleTitles[item.role] }}: {{ item.title }}
-              </button>
-            }
-          </div>
-        }
-        <h3>{{ selected.title }}</h3>
-        <p class="eyebrow">AUTHOR'S WORDS · PAGE {{ selected.citation.page }}</p>
-        <blockquote>{{ selected.citation.quote }}</blockquote>
-        <p class="small muted">
-          Exact excerpt matched to extracted text. Presence is not proof of scientific validity or
-          of this interpretation.
-        </p>
-        <p class="eyebrow">ASSISTANT'S INTERPRETATION</p>
-        <p class="annotation-explanation">{{ selected.explanation }}</p>
-        <p class="limitation"><strong>Question this reading:</strong> {{ selected.caveat }}</p>
-        <div class="annotation-actions">
-          <button class="quiet" (click)="note('correction')">Correct this reading</button
-          ><button class="quiet" (click)="note('application')">Apply to my project</button
-          ><button class="quiet" (click)="note('attempt')">Explain in my own words</button>
-        </div>
-        <details class="optional-practice">
-          <summary>A question to think with</summary>
-          <p>{{ selected.question }}</p>
-          <p class="small muted">
-            Optional, after the explanation. Your own reasoning can differ from the assistant's.
-          </p>
-          <button class="secondary" (click)="practice()">Explore this question</button>
-        </details>
-      } @else {
-        <p class="muted inspector-empty">
-          Select a marked passage or argument card. You can always read and annotate without AI.
-        </p>
-      }
-      @if (current(); as analysis) {
-        <section class="passage-question" aria-label="Question this reading">
-          <h3>Ask at this passage</h3>
-          <p class="small muted">{{ coverage(analysis) }}</p>
-          @if (active(); as selected) {
-            <p class="small muted">
-              Sent as context: {{ roleTitles[selected.role] }}, PDF page
-              {{ selected.citation.page }}, and the author's excerpt shown above. Your question
-              stays separate.
-            </p>
-          }
-          @if (!setupOpen()) {
-            <label
-              >AI destination<select [formField]="fields.destination">
-                <option value="">Choose a configured provider / model</option>
-                @for (item of choices(); track destinationKey(item)) {
-                  <option [value]="destinationKey(item)">
-                    {{ item.provider }} · {{ item.model }}
-                  </option>
-                }
-              </select></label
-            >
-          }
-          @if (!setupOpen() && thinkingLevels().length > 1) {
+          @if (thinkingLevels().length > 1) {
             <label
               >Thinking<select
                 [formField]="thinkingFields.thinking"
-                aria-describedby="question-thinking-help"
+                [attr.aria-describedby]="
+                  setupOpen() ? 'setup-thinking-help' : 'question-thinking-help'
+                "
               >
                 @for (level of thinkingLevels(); track level) {
                   <option [value]="level">{{ thinkingTitles[level] }}</option>
@@ -293,109 +85,397 @@
               </select></label
             >
           }
-          <p class="small muted" id="question-thinking-help">
-            Question thinking: {{ thinkingTitles[thinkingDraft().thinking] }}. This applies to the
-            next question, not the saved reading. Higher levels may increase latency and charges.
-          </p>
-          @for (consent of [questionConsentKey()]; track consent) {
-            <label class="checkbox"
-              ><input type="checkbox" [formField]="questionConsentFields.consent" /><span
-                >I agree to send this saved reading's pages {{ analysis.page_start }}–{{
-                  analysis.page_end
-                }}, AI interpretation, my question and selected passage context to
-                {{ choice()?.provider || 'the selected provider' }}. Provider charges and retention
-                policies apply.</span
-              ></label
-            >
-          }
-          <label
-            >Question or challenge this passage<textarea
-              [formField]="questionFields.question"
-              rows="3"
-              placeholder="Why does this count as evidence? What alternative explanation remains? (8–2,000 characters)"
-            ></textarea>
-          </label>
-          <button class="secondary" (click)="ask()" [disabled]="!canAsk()">
-            Ask with source evidence
-          </button>
-          @if (feedback.error()) {
-            <p class="error" role="alert">{{ message(feedback.error()) }}</p>
-          }
-          @for (reply of feedback.value(); track reply.id) {
-            <article class="feedback">
-              <h4>{{ reply.question }}</h4>
-              <p class="small muted">
-                {{ reply.provider }} / {{ reply.model }} · Assistant interpretation ·
-                {{ thinkingDescription(reply.output.request_settings) }}<br />{{
-                  coverage(analysis)
-                }}
+        </div>
+        <p class="small muted" id="setup-thinking-help">
+          Thinking: {{ thinkingTitles[thinkingDraft().thinking] }}. Only verified levels are
+          offered. Provider default leaves this setting to the model. Higher levels may increase
+          latency and charges; they do not guarantee a correct interpretation.
+        </p>
+      </details>
+      @if (!choices().length && current() && !setupOpen()) {
+        <p class="notice">
+          <strong>No AI provider configured</strong> — saved readings and source-linked notes remain
+          available. Configure a key and allowed model on the server to ask AI.
+        </p>
+      }
+      @if (setupOpen()) {
+        <section class="analysis-setup surface" aria-label="Create reading map">
+          <div>
+            <h3>Create an annotated reading</h3>
+            <p class="small muted">
+              Explore an interpretation linked to exact passages. Start with the source, not a
+              learner questionnaire.
+            </p>
+          </div>
+          @if (!choices().length) {
+            <div class="notice">
+              <strong>No AI provider configured</strong>
+              <p>
+                Add a server-side key and allowed model, then restart the API. Reading and
+                source-linked notes still work.
               </p>
-              @if (reply.output.request_context; as context) {
-                <p class="small muted">
-                  Your question context: {{ roleTitles[context.role] }} · PDF page
-                  {{ context.citation.page }}
-                </p>
-              }
-              <p>{{ reply.output.answer }}</p>
-              @for (reference of reply.output.citations; track $index) {
-                <blockquote>{{ reference.quote }}</blockquote>
-                <button
-                  class="citation-button"
-                  (click)="cite.emit(reference); page.set(reference.page)"
-                >
-                  View page {{ reference.page }}
-                </button>
-              }
-              @if (!reply.output.citations.length) {
-                <p class="notice small">
-                  No supporting excerpt in this answer. Do not treat it as a source-backed finding.
-                </p>
-              }
-              <p class="limitation">{{ reply.output.limitation }}</p>
-            </article>
+            </div>
           }
+          <fieldset class="setup-fields">
+            <legend>Page range</legend>
+            <label
+              >First PDF page<input
+                type="number"
+                aria-describedby="scope-help"
+                [formField]="fields.page_start"
+            /></label>
+            <label
+              >Last PDF page<input
+                type="number"
+                aria-describedby="scope-help"
+                [formField]="fields.page_end"
+            /></label>
+          </fieldset>
+          <p class="scope-disclosure" id="scope-help">
+            <strong>{{ fullScope() ? 'Full extracted-text coverage' : 'Partial coverage' }}</strong>
+            · PDF pages {{ draft().page_start }}–{{ draft().page_end }} of
+            {{ detail().document.total_pages }} · {{ scopedCharacters() }} characters.
+          </p>
+          @if (!fullScope()) {
+            <p class="notice small">
+              This is one bounded section, not the whole paper or thesis. Other pages will not be
+              analyzed. Select another range explicitly to extend your reading.
+            </p>
+          }
+          @if (!validScope()) {
+            <p class="error small">Choose a valid range with readable text within the limits.</p>
+          }
+          <p class="small muted">
+            Maximum 20 pages / 60,000 characters per request. Provider charges and retention
+            policies apply; limits are not a monetary budget. No automatic retries across providers.
+          </p>
+          <div class="setup-submit">
+            <!-- The control identity follows the exact transmission consented to. -->
+            @for (consent of [consentKey()]; track consent) {
+              <label class="checkbox"
+                ><input type="checkbox" [formField]="consentFields.consent" /><span
+                  >I agree to send these selected pages to
+                  {{ choice()?.provider || 'the selected provider' }} for analysis. Provider charges
+                  and retention policies apply.</span
+                ></label
+              >
+            }
+            <button
+              class="primary"
+              [disabled]="!canAnalyze()"
+              [attr.aria-busy]="isAnalyzing()"
+              (click)="analyze()"
+            >
+              {{ isAnalyzing() ? 'Creating reading map…' : 'Create reading map' }}
+              <app-icon name="arrow" />
+            </button>
+          </div>
         </section>
-        <details class="original-lenses">
-          <summary>Keep the four critical lenses in view</summary>
-          @if (analysis.attempt) {
-            <h4>Your original attempt</h4>
-            <p>{{ analysis.attempt }}</p>
-          }
-          @for (insight of analysis.output.insights; track insight.lens) {
-            <article class="insight">
-              <h4>{{ lensTitles[insight.lens] }}</h4>
-              <p>{{ insight.interpretation }}</p>
-              <p class="limitation">{{ insight.limitation }}</p>
-              @if (insight.author_excerpt; as excerpt) {
-                <button
-                  class="citation-button"
-                  (click)="cite.emit(excerpt); page.set(excerpt.page)"
-                >
-                  View PDF page {{ excerpt.page }}
-                </button>
-              } @else {
-                <p class="notice small">No supporting excerpt identified in this scope.</p>
+      }
+      @if (error()) {
+        <p class="error" role="alert">{{ error() }}</p>
+      }
+      @if (pending() && !isAsking()) {
+        <p class="request-processing" role="status" aria-live="polite">
+          <span class="processing-ring" aria-hidden="true"></span>
+          <span>{{ processingLabel() }}</span>
+        </p>
+      }
+      @if (current(); as analysis) {
+        <section class="argument-overview surface" aria-label="Reading map overview">
+          <details class="reading-context">
+            <summary>Reading details & passages · {{ annotations().length }} source links</summary>
+            <p class="map-provenance small muted">
+              Assistant interpretation · verify against the source
+            </p>
+            <p class="scope-disclosure">
+              {{ coverage(analysis) }}<br />{{ analysis.provider }} / {{ analysis.model }} ·
+              {{ thinkingDescription(analysis.output.request_settings) }}
+            </p>
+            @if (analysis.output.reading_map; as map) {
+              <p class="map-summary">{{ map.overview }}</p>
+            } @else {
+              <p class="notice small">
+                This earlier reading keeps its original four lenses. The visible links reuse saved
+                excerpts; no contribution or limits annotation was invented.
+              </p>
+            }
+            @if (analysis.output.reading_map; as map) {
+              @if (map.gaps.length) {
+                <details class="map-gaps" open>
+                  <summary>What these pages do not establish ({{ map.gaps.length }})</summary>
+                  @for (gap of map.gaps; track gap.role) {
+                    <p class="small">
+                      <strong>{{ roleTitles[gap.role] }}:</strong> {{ gap.reason }}
+                    </p>
+                  }
+                </details>
               }
-            </article>
+            }
+            @if (!analysis.output.reading_map) {
+              @for (insight of analysis.output.insights; track insight.lens) {
+                @if (!insight.author_excerpt) {
+                  <p class="notice small">
+                    <strong>{{ lensTitles[insight.lens] }}:</strong> No supporting excerpt
+                    identified.
+                    {{ insight.interpretation }}
+                  </p>
+                }
+              }
+            }
+            <div class="argument-cards">
+              @for (annotation of visibleAnnotations(); track annotation.id) {
+                <button
+                  [class]="'argument-card role-' + annotation.role"
+                  [attr.aria-pressed]="activeId() === annotation.id"
+                  (click)="selectAnnotation([annotation.id])"
+                >
+                  <span class="role-label"
+                    ><app-icon [name]="roleIcons[annotation.role]" />{{
+                      roleTitles[annotation.role]
+                    }}</span
+                  ><strong>{{ annotation.title }}</strong
+                  ><small
+                    >View source · PDF page {{ annotation.citation.page }} <app-icon name="arrow"
+                  /></small>
+                </button>
+              } @empty {
+                <p class="muted small">
+                  No supported source annotations in this selected scope. Missing roles are
+                  explained below; they are not evidence of absence from the full document.
+                </p>
+              }
+            </div>
+          </details>
+        </section>
+      } @else {
+        <p class="notice small">
+          Your text is local. Create a reading map above when you are ready, or read and make your
+          own notes without AI.
+        </p>
+      }
+      @if (detail().analyses.length) {
+        <details class="saved-readings">
+          <summary>Saved readings ({{ detail().analyses.length }})</summary>
+          @for (item of detail().analyses; track item.id) {
+            <button
+              class="saved-reading"
+              [attr.aria-pressed]="current()?.id === item.id"
+              (click)="openAnalysis(item)"
+            >
+              Pages {{ item.page_start }}–{{ item.page_end }} · {{ item.provider }} /
+              {{ item.model }}
+            </button>
           }
-          <p>{{ analysis.output.learning_feedback }}</p>
-          <p><strong>Next question:</strong> {{ analysis.output.next_question }}</p>
         </details>
       }
-    </aside>
+    </div>
+    <nav class="mobile-reading-switch" aria-label="Reading view">
+      <button
+        [attr.aria-pressed]="mobilePane() === 'source'"
+        aria-controls="reading-source"
+        (click)="mobilePane.set('source')"
+      >
+        <app-icon name="book" /> Read source
+      </button>
+      <button
+        [attr.aria-pressed]="mobilePane() === 'explanation'"
+        aria-controls="reading-explanation"
+        (click)="mobilePane.set('explanation')"
+      >
+        <app-icon name="note" /> Understand passage
+      </button>
+    </nav>
+    <div class="source-workspace" id="reading-source">
+      <app-source-reader
+        [pages]="detail().pages"
+        [page]="page()"
+        [citation]="citation()"
+        [annotations]="visibleAnnotations()"
+        [activeId]="activeId()"
+        (pageChange)="page.set($event)"
+        (annotationSelect)="selectAnnotation($event)"
+        (annotate)="annotate.emit($event)"
+      />
+    </div>
   </div>
-  @if (detail().analyses.length) {
-    <details class="saved-readings">
-      <summary>Saved readings ({{ detail().analyses.length }})</summary>
-      @for (item of detail().analyses; track item.id) {
-        <button
-          class="saved-reading"
-          [attr.aria-pressed]="current()?.id === item.id"
-          (click)="openAnalysis(item)"
-        >
-          Pages {{ item.page_start }}–{{ item.page_end }} · {{ item.provider }} / {{ item.model }}
-        </button>
+  <aside
+    [class]="'annotation-inspector surface role-' + (active()?.role ?? 'approach')"
+    id="reading-explanation"
+    aria-labelledby="inspector-heading"
+  >
+    <h2 #explanationHeading tabindex="-1" id="inspector-heading">
+      <app-icon name="info" />Why this part matters
+    </h2>
+    @if (active(); as selected) {
+      @for (passage of [selected]; track passage.id) {
+        <div class="passage-content">
+          @if (overlap().length > 1) {
+            <div class="notice small">
+              <p>This passage has more than one possible role. Explore each interpretation:</p>
+              @for (item of overlap(); track item.id) {
+                <button
+                  class="quiet"
+                  [attr.aria-pressed]="activeId() === item.id"
+                  (click)="activeId.set(item.id)"
+                >
+                  {{ roleTitles[item.role] }}: {{ item.title }}
+                </button>
+              }
+            </div>
+          }
+          <h3>{{ selected.title }}</h3>
+          <p class="selected-announcement small" role="status">
+            <app-icon [name]="roleIcons[selected.role]" />Selected {{ roleTitles[selected.role] }} ·
+            PDF page {{ selected.citation.page }}
+          </p>
+          <p class="content-label">
+            <app-icon name="quote" />Author's words · page {{ selected.citation.page }}
+          </p>
+          <blockquote>{{ selected.citation.quote }}</blockquote>
+          <p class="small muted">
+            Exact excerpt matched to extracted text. Presence is not proof of scientific validity or
+            of this interpretation.
+          </p>
+          <p class="content-label"><app-icon name="info" />Assistant's interpretation</p>
+          <p class="annotation-explanation">{{ selected.explanation }}</p>
+          <p class="limitation">
+            <app-icon name="limits" /><span
+              ><strong>Question this reading:</strong> {{ selected.caveat }}</span
+            >
+          </p>
+          <div class="annotation-actions">
+            <button class="quiet" (click)="note('correction')">
+              <app-icon name="pencil" />Correct this reading</button
+            ><button class="quiet" (click)="note('application')">
+              <app-icon name="link" />Apply to my project</button
+            ><button class="quiet" (click)="note('attempt')">
+              <app-icon name="note" />Explain in my own words
+            </button>
+          </div>
+          <details class="optional-practice">
+            <summary><app-icon name="problem" />A question to think with</summary>
+            <p>{{ selected.question }}</p>
+            <p class="small muted">
+              Optional, after the explanation. Your own reasoning can differ from the assistant's.
+            </p>
+            <button class="secondary" (click)="practice()">Explore this question</button>
+          </details>
+        </div>
       }
-    </details>
-  }
+    } @else {
+      <p class="muted inspector-empty">
+        Select a marked passage or argument card. You can always read and annotate without AI.
+      </p>
+    }
+    @if (current(); as analysis) {
+      <section class="passage-question" aria-label="Question this reading">
+        <h3><app-icon name="send" />Ask at this passage</h3>
+        <p class="small muted">{{ coverage(analysis) }}</p>
+        @if (active(); as selected) {
+          <p class="small muted">
+            Sent as context: {{ roleTitles[selected.role] }}, PDF page {{ selected.citation.page }},
+            and the author's excerpt shown above. Your question stays separate.
+          </p>
+        }
+        <label class="question-prompt"
+          >Question or challenge this passage<textarea
+            [formField]="questionFields.question"
+            rows="3"
+            placeholder="Why does this count as evidence? What alternative explanation remains? (8–2,000 characters)"
+          ></textarea>
+        </label>
+        <button class="quiet request-settings-link" (click)="editRequestSettings()">
+          Change AI request settings
+        </button>
+        <p class="small muted" id="question-thinking-help">
+          Question thinking: {{ thinkingTitles[thinkingDraft().thinking] }}. This applies to the
+          next question, not the saved reading. Higher levels may increase latency and charges.
+        </p>
+        @for (consent of [questionConsentKey()]; track consent) {
+          <label class="checkbox"
+            ><input type="checkbox" [formField]="questionConsentFields.consent" /><span
+              >I agree to send this saved reading's pages {{ analysis.page_start }}–{{
+                analysis.page_end
+              }}, AI interpretation, my question and selected passage context to
+              {{ choice()?.provider || 'the selected provider' }}. Provider charges and retention
+              policies apply.</span
+            ></label
+          >
+        }
+        <button
+          class="secondary"
+          (click)="ask()"
+          [disabled]="!canAsk()"
+          [attr.aria-busy]="isAsking()"
+        >
+          {{ isAsking() ? 'Preparing answer…' : 'Ask with source evidence' }}
+          <app-icon name="send" />
+        </button>
+        @if (isAsking() || feedback.isLoading()) {
+          <p class="request-processing" role="status" aria-live="polite">
+            <span class="processing-ring" aria-hidden="true"></span>
+            <span>{{ isAsking() ? processingLabel() : 'Loading saved answers…' }}</span>
+          </p>
+        }
+        @if (feedback.error()) {
+          <p class="error" role="alert">{{ message(feedback.error()) }}</p>
+        }
+        @for (reply of feedback.value(); track reply.id) {
+          <article class="feedback">
+            <h4>{{ reply.question }}</h4>
+            <p class="small muted">
+              {{ reply.provider }} / {{ reply.model }} · Assistant interpretation ·
+              {{ thinkingDescription(reply.output.request_settings) }}<br />{{ coverage(analysis) }}
+            </p>
+            @if (reply.output.request_context; as context) {
+              <p class="small muted">
+                Your question context: {{ roleTitles[context.role] }} · PDF page
+                {{ context.citation.page }}
+              </p>
+            }
+            <p>{{ reply.output.answer }}</p>
+            @for (reference of reply.output.citations; track $index) {
+              <blockquote>{{ reference.quote }}</blockquote>
+              <button
+                class="citation-button"
+                (click)="cite.emit(reference); page.set(reference.page)"
+              >
+                View page {{ reference.page }}
+              </button>
+            }
+            @if (!reply.output.citations.length) {
+              <p class="notice small">
+                No supporting excerpt in this answer. Do not treat it as a source-backed finding.
+              </p>
+            }
+            <p class="limitation">{{ reply.output.limitation }}</p>
+          </article>
+        }
+      </section>
+      <details class="original-lenses">
+        <summary>Keep the four critical lenses in view</summary>
+        @if (analysis.attempt) {
+          <h4>Your original attempt</h4>
+          <p>{{ analysis.attempt }}</p>
+        }
+        @for (insight of analysis.output.insights; track insight.lens) {
+          <article class="insight">
+            <h4>{{ lensTitles[insight.lens] }}</h4>
+            <p>{{ insight.interpretation }}</p>
+            <p class="limitation">{{ insight.limitation }}</p>
+            @if (insight.author_excerpt; as excerpt) {
+              <button class="citation-button" (click)="cite.emit(excerpt); page.set(excerpt.page)">
+                View PDF page {{ excerpt.page }}
+              </button>
+            } @else {
+              <p class="notice small">No supporting excerpt identified in this scope.</p>
+            }
+          </article>
+        }
+        <p>{{ analysis.output.learning_feedback }}</p>
+        <p><strong>Next question:</strong> {{ analysis.output.next_question }}</p>
+      </details>
+    }
+  </aside>
 </section>

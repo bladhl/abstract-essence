@@ -31,7 +31,7 @@ describe('Theme', () => {
     const theme = TestBed.inject(Theme);
     expect(theme.current()).toBe('dark');
     expect(root.dataset['theme']).toBe('dark');
-    expect(meta.getAttribute('content')).toBe('#181d1a');
+    expect(meta.getAttribute('content')).toBe('#1a1a1a');
     expect(getItem).toHaveBeenCalledWith(themeStorageKey);
     expect(setItem).not.toHaveBeenCalled();
   });
@@ -41,7 +41,7 @@ describe('Theme', () => {
     const theme = TestBed.inject(Theme);
     expect(theme.current()).toBe('light');
     expect(root.dataset['theme']).toBe('light');
-    expect(meta.getAttribute('content')).toBe('#f7f8f4');
+    expect(meta.getAttribute('content')).toBe('#f2f5fa');
   });
 
   it('ignores invalid stored values', () => {
