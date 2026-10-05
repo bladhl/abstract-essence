@@ -9,9 +9,29 @@
     class="source-sheet"
     tabindex="0"
     aria-label="Extracted page text"
-    (mouseup)="captureSelection()"
-    (keyup)="captureSelection()"
+    (mouseup)="captureSelection($event)"
+    (keyup)="captureSelection($event)"
+    (scroll)="dismissToolbar()"
+    (keydown.escape)="dismissToolbar()"
   >
+    @if (toolbar(); as bar) {
+      <div
+        class="selection-toolbar"
+        role="toolbar"
+        aria-label="Selected passage actions"
+        [style.top.px]="bar.top"
+        [style.left.px]="bar.left"
+        (mousedown)="$event.preventDefault()"
+      >
+        <button class="quiet" (click)="addNote()"><app-icon name="pencil" />Add note</button>
+        <button class="quiet" (click)="copyCitation()">
+          <app-icon name="quote" />{{ copied() || 'Copy citation' }}
+        </button>
+        <button class="quiet" [disabled]="!canAsk()" (click)="ask()">
+          <app-icon name="send" />Ask AI
+        </button>
+      </div>
+    }
     <div class="source-text">
       @for (part of parts(); track part.start) {
         @if (part.annotations.length) {
@@ -21,6 +41,7 @@
             [class]="'annotation-mark role-' + part.annotations[0].role"
             [class.source-citation]="part.cited"
             [attr.aria-label]="label(part.annotations)"
+            [attr.data-preview]="preview(part.annotations)"
             [attr.aria-pressed]="isActive(part.annotations)"
             (click)="choose(part.annotations)"
             (keydown.enter)="choose(part.annotations)"
@@ -41,8 +62,8 @@
     </div>
     <div class="sheet-notes">
       <p class="small muted source-instruction">
-        Select a marked passage to explore its role. Labels and explanations are AI interpretations,
-        not the author's labels.
+        Select a marked passage to explore its role, or select any text to add a note, copy a
+        citation or ask AI. Labels and explanations are AI interpretations, not the author's labels.
       </p>
       @if (repeated()) {
         <p class="notice small">
@@ -61,12 +82,12 @@
         formulas and layout may be incomplete; verify the original. No OCR.
       </p>
       <details class="excerpt-picker">
-        <summary><app-icon name="pencil" />Make a source-linked note</summary>
+        <summary><app-icon name="pencil" />Paste an excerpt</summary>
         <label
           >Exact excerpt from this page<textarea
             [formField]="quoteForm.quote"
             rows="3"
-            placeholder="Select text above, or paste a short excerpt (8–1,200 characters)."
+            placeholder="Paste a short excerpt (8–1,200 characters)."
           ></textarea>
         </label>
         <button

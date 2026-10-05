@@ -55,6 +55,7 @@ export class ReadingPanel {
   private readonly api = inject(WorkspaceApi);
   private readonly document = inject(DOCUMENT);
   private readonly explanationHeading = viewChild<ElementRef<HTMLElement>>('explanationHeading');
+  private readonly questionBox = viewChild<ElementRef<HTMLTextAreaElement>>('questionBox');
   private readonly requestSettings = viewChild<ElementRef<HTMLDetailsElement>>('requestSettings');
   readonly detail = input.required<DocumentDetail>();
   readonly choices = input.required<ProviderChoice[]>();
@@ -168,6 +169,11 @@ export class ReadingPanel {
     return { question: '' };
   });
   readonly questionFields = form(this.questionDraft);
+  readonly selectionContext = linkedSignal<Citation | null>(() => {
+    this.current()?.id;
+    this.detail().document.id;
+    return null;
+  });
   readonly annotations = computed(() => sourceAnnotations(this.current()));
   readonly filter = linkedSignal<Filter>(() => {
     this.current()?.id;
@@ -327,12 +333,19 @@ export class ReadingPanel {
     this.setupOpen.set(false);
     this.page.set(sourceAnnotations(item)[0]?.citation.page ?? item.page_start);
   }
+  askAbout(selected: Citation) {
+    this.selectionContext.set(selected);
+    this.mobilePane.set('explanation');
+    // Wait for the question box to render (it may be in a hidden mobile pane).
+    setTimeout(() => this.questionBox()?.nativeElement.focus());
+  }
   async ask() {
     const item = this.current(),
       choice = this.choice();
     if (!item || !choice || !this.canAsk()) return;
     const id = this.detail().document.id;
     const active = this.active();
+    const picked = this.selectionContext();
     const question = this.questionDraft().question.trim();
     this.pending.set({ kind: 'question', documentId: id, readingId: item.id });
     this.error.set('');
@@ -343,11 +356,16 @@ export class ReadingPanel {
         thinking: this.thinkingDraft().thinking,
         consent: true,
         question,
-        ...(active ? { context: { role: active.role, citation: active.citation } } : {}),
+        ...(picked
+          ? { context: { citation: picked } }
+          : active
+            ? { context: { role: active.role, citation: active.citation } }
+            : {}),
       });
       if (this.detail().document.id === id && this.current()?.id === item.id) {
         this.feedback.reload();
         this.questionDraft.set({ question: '' });
+        this.selectionContext.set(null);
       }
     } catch (e) {
       if (this.detail().document.id === id && this.current()?.id === item.id)

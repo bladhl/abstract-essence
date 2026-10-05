@@ -111,7 +111,7 @@ class AnalysisInput(Destination):
 
 
 class AnnotationContext(StrictModel):
-    role: Role | Lens
+    role: Role | Lens | None = None
     citation: Citation
 
 

@@ -60,7 +60,7 @@ export class WorkspaceApi {
       provider: string;
       model: string;
       consent: boolean;
-      context?: { role: AnnotationRole; citation: Citation };
+      context?: { role?: AnnotationRole; citation: Citation };
       thinking?: Thinking;
     },
   ) {

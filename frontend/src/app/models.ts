@@ -111,7 +111,7 @@ export interface Feedback {
     answer: string;
     citations: Citation[];
     limitation: string;
-    request_context?: { role: AnnotationRole; citation: Citation };
+    request_context?: { role?: AnnotationRole | null; citation: Citation };
     request_settings?: RequestSettings;
   };
 }

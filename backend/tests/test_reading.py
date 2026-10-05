@@ -237,6 +237,20 @@ def test_context_is_verified_and_preserved_separately(workspace, analysis_reques
     assert len(ai.calls) == count
 
 
+def test_context_without_role_is_accepted(workspace, analysis_request):
+    client, _ = workspace
+    item = client.post("/api/reading/analyses", json=analysis_request).json()
+    body = {
+        "provider": "google",
+        "model": "test-model",
+        "consent": True,
+        "question": "What does this passage do in the argument?",
+        "context": {"citation": {"page": 1, "quote": QUOTE}},
+    }
+    response = client.post(f"/api/reading/analyses/{item['id']}/feedback", json=body)
+    assert response.status_code == 201
+
+
 @pytest.mark.parametrize("quote,page", [("An invented quote", 1), (QUOTE, 2)])
 def test_unsupported_ai_output_is_not_saved(workspace, document, analysis_request, quote, page):
     client, ai = workspace

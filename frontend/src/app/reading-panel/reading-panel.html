@@ -296,6 +296,8 @@
         (pageChange)="page.set($event)"
         (annotationSelect)="selectAnnotation($event)"
         (annotate)="annotate.emit($event)"
+        [canAsk]="!!current() && !!choice()"
+        (askAbout)="askAbout($event)"
       />
     </div>
   </div>
@@ -372,7 +374,22 @@
       <section class="passage-question" aria-label="Question this reading">
         <h3><app-icon name="send" />Ask at this passage</h3>
         <p class="small muted">{{ coverage(analysis) }}</p>
-        @if (active(); as selected) {
+        @if (selectionContext(); as picked) {
+          <p class="selection-chip small">
+            <span
+              >About: "{{
+                picked.quote.length > 80 ? picked.quote.slice(0, 80) + '…' : picked.quote
+              }}" · p. {{ picked.page }}</span
+            >
+            <button
+              class="quiet"
+              (click)="selectionContext.set(null)"
+              aria-label="Remove selected passage"
+            >
+              <app-icon name="close" />
+            </button>
+          </p>
+        } @else if (active(); as selected) {
           <p class="small muted">
             Sent as context: {{ roleTitles[selected.role] }}, PDF page {{ selected.citation.page }},
             and the author's excerpt shown above. Your question stays separate.
@@ -380,6 +397,7 @@
         }
         <label class="question-prompt"
           >Question or challenge this passage<textarea
+            #questionBox
             [formField]="questionFields.question"
             rows="3"
             placeholder="Why does this count as evidence? What alternative explanation remains? (8–2,000 characters)"
@@ -430,7 +448,8 @@
             </p>
             @if (reply.output.request_context; as context) {
               <p class="small muted">
-                Your question context: {{ roleTitles[context.role] }} · PDF page
+                Your question context:
+                {{ context.role ? roleTitles[context.role] : 'Selected passage' }} · PDF page
                 {{ context.citation.page }}
               </p>
             }

@@ -1,5 +1,11 @@
 import type { AnnotationView } from './models';
-import { annotatedSegments, excerptRanges, extractPdf, highlightedParts } from './pdf';
+import {
+  annotatedSegments,
+  excerptRanges,
+  extractPdf,
+  highlightedParts,
+  reflowHardWraps,
+} from './pdf';
 
 describe('source excerpts', () => {
   it('matches normalized whitespace without changing displayed text', () => {
@@ -63,5 +69,14 @@ describe('multiple source annotations', () => {
     expect(parts.length).toBeLessThan(100);
     expect(excerptRanges(source, 'aaaaaaaa', 31)).toHaveLength(31);
     expect(parts.some((p) => p.annotations.length === 8)).toBe(true);
+  });
+});
+
+describe('reflowHardWraps', () => {
+  it('joins single hard wraps, keeps paragraph breaks, and preserves length', () => {
+    const text = 'one\ntwo\n\nthree\n\n\nfour\nfive\n';
+    const out = reflowHardWraps(text);
+    expect(out).toBe('one two\n\nthree\n\n\nfour five ');
+    expect(out).toHaveLength(text.length);
   });
 });

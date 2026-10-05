@@ -119,6 +119,11 @@ export interface SourceSegment {
   cited: boolean;
 }
 
+/** Join PDF hard wraps for display. 1 char to 1 char, so offsets are unchanged; blank lines stay. */
+export function reflowHardWraps(text: string): string {
+  return text.replace(/(?<!\n)\n(?!\n)/g, ' ');
+}
+
 export const visibleOccurrencesPerExcerpt = 30;
 
 /** Sweep verified boundaries. A display cap avoids thousands of duplicate interactive marks. */
