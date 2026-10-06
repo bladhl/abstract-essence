@@ -9,12 +9,8 @@
       <div class="document-actions">
         <ng-content select=".doc-actions" />
         @if (current()) {
-          <button
-            class="secondary"
-            (click)="setupOpen.set(!setupOpen())"
-            [attr.aria-expanded]="setupOpen()"
-          >
-            {{ setupOpen() ? 'Close analysis setup' : 'Analyze another scope' }}
+          <button class="secondary" aria-haspopup="dialog" (click)="setupOpen.set(true)">
+            <app-icon name="plus" />Analyze another scope
           </button>
         }
       </div>
@@ -53,16 +49,71 @@
     </div>
     <div class="reading-regions">
       <ng-content select=".doc-confirm" />
-      <details #requestSettings class="request-settings" [open]="setupOpen()">
-        <summary>
-          AI request settings<span
-            >{{ choice()?.provider || 'Choose a destination' }} ·
-            {{ thinkingTitles[thinkingDraft().thinking] }}</span
-          >
-        </summary>
+      @if (dialogOpen()) {
+        <dialog
+          #setupDialog
+          class="setup-dialog"
+          aria-labelledby="setup-dialog-title"
+          aria-describedby="setup-dialog-intro"
+          (close)="closeDialog()"
+        >
+          <header class="setup-dialog-header">
+            <div>
+              @if (setupModal()) {
+                <h2 id="setup-dialog-title"><app-icon name="search" />Analyze another scope</h2>
+                <p class="small muted" id="setup-dialog-intro">
+                  Explore an interpretation linked to exact passages.
+                </p>
+              } @else {
+                <h2 id="setup-dialog-title"><app-icon name="spark" />AI request settings</h2>
+                <p class="small muted" id="setup-dialog-intro">
+                  Applies to your next question, not the saved reading.
+                </p>
+              }
+            </div>
+            <button
+              class="quiet icon-button"
+              [attr.aria-label]="
+                setupModal() ? 'Close analysis setup' : 'Close AI request settings'
+              "
+              (click)="closeDialog()"
+            >
+              <app-icon name="close" />
+            </button>
+          </header>
+          <div class="setup-dialog-body">
+            <section class="setup-step request-settings" aria-labelledby="setup-model-title">
+              <h3 id="setup-model-title"><app-icon name="spark" />AI model</h3>
+              <ng-container [ngTemplateOutlet]="modelFields" />
+            </section>
+            @if (setupModal()) {
+              <div class="analysis-setup">
+                <section class="setup-step" aria-labelledby="setup-scope-title">
+                  <h3 id="setup-scope-title"><app-icon name="file" />Pages to analyze</h3>
+                  <ng-container [ngTemplateOutlet]="scopeFields" />
+                </section>
+                <footer class="setup-dialog-footer">
+                  @if (error()) {
+                    <p class="error" role="alert">{{ error() }}</p>
+                  }
+                  <ng-container [ngTemplateOutlet]="submit" />
+                </footer>
+              </div>
+            } @else {
+              <footer class="setup-dialog-footer">
+                <button class="primary" (click)="closeDialog()">
+                  <app-icon name="check" />Done
+                </button>
+              </footer>
+            }
+          </div>
+        </dialog>
+      }
+      <ng-template #modelFields>
         <div class="request-fields">
           <label
-            >AI destination<select [formField]="fields.destination">
+            ><span class="field-label"><app-icon name="send" />AI destination</span
+            ><select [formField]="fields.destination">
               <option value="">Choose a configured provider / model</option>
               @for (item of choices(); track destinationKey(item)) {
                 <option [value]="destinationKey(item)">
@@ -73,7 +124,8 @@
           >
           @if (thinkingLevels().length > 1) {
             <label
-              >Thinking<select
+              ><span class="field-label"><app-icon name="thinking" />Thinking</span
+              ><select
                 [formField]="thinkingFields.thinking"
                 [attr.aria-describedby]="
                   setupOpen() ? 'setup-thinking-help' : 'question-thinking-help'
@@ -91,14 +143,14 @@
           offered. Provider default leaves this setting to the model. Higher levels may increase
           latency and charges; they do not guarantee a correct interpretation.
         </p>
-      </details>
+      </ng-template>
       @if (!choices().length && current() && !setupOpen()) {
         <p class="notice">
           <strong>No AI provider configured</strong> — saved readings and source-linked notes remain
           available. Configure a key and allowed model on the server to ask AI.
         </p>
       }
-      @if (setupOpen()) {
+      @if (setupOpen() && !setupModal()) {
         <section class="analysis-setup surface" aria-label="Create reading map">
           <div>
             <h3>Create an annotated reading</h3>
@@ -107,72 +159,82 @@
               learner questionnaire.
             </p>
           </div>
-          @if (!choices().length) {
-            <div class="notice">
-              <strong>No AI provider configured</strong>
-              <p>
-                Add a server-side key and allowed model, then restart the API. Reading and
-                source-linked notes still work.
-              </p>
-            </div>
-          }
-          <fieldset class="setup-fields">
-            <legend>Page range</legend>
-            <label
-              >First PDF page<input
-                type="number"
-                aria-describedby="scope-help"
-                [formField]="fields.page_start"
-            /></label>
-            <label
-              >Last PDF page<input
-                type="number"
-                aria-describedby="scope-help"
-                [formField]="fields.page_end"
-            /></label>
-          </fieldset>
-          <p class="scope-disclosure" id="scope-help">
-            <strong>{{ fullScope() ? 'Full extracted-text coverage' : 'Partial coverage' }}</strong>
-            · PDF pages {{ draft().page_start }}–{{ draft().page_end }} of
-            {{ detail().document.total_pages }} · {{ scopedCharacters() }} characters.
-          </p>
-          @if (!fullScope()) {
-            <p class="notice small">
-              This is one bounded section, not the whole paper or thesis. Other pages will not be
-              analyzed. Select another range explicitly to extend your reading.
-            </p>
-          }
-          @if (!validScope()) {
-            <p class="error small">Choose a valid range with readable text within the limits.</p>
-          }
-          <p class="small muted">
-            Maximum 20 pages / 60,000 characters per request. Provider charges and retention
-            policies apply; limits are not a monetary budget. No automatic retries across providers.
-          </p>
+          <div class="request-settings setup-inline-model">
+            <ng-container [ngTemplateOutlet]="modelFields" />
+          </div>
+          <ng-container [ngTemplateOutlet]="scopeFields" />
           <div class="setup-submit">
-            <!-- The control identity follows the exact transmission consented to. -->
-            @for (consent of [consentKey()]; track consent) {
-              <label class="checkbox"
-                ><input type="checkbox" [formField]="consentFields.consent" /><span
-                  >I agree to send these selected pages to
-                  {{ choice()?.provider || 'the selected provider' }} for analysis. Provider charges
-                  and retention policies apply.</span
-                ></label
-              >
-            }
-            <button
-              class="primary"
-              [disabled]="!canAnalyze()"
-              [attr.aria-busy]="isAnalyzing()"
-              (click)="analyze()"
-            >
-              {{ isAnalyzing() ? 'Creating reading map…' : 'Create reading map' }}
-              <app-icon name="arrow" />
-            </button>
+            <ng-container [ngTemplateOutlet]="submit" />
           </div>
         </section>
       }
-      @if (error()) {
+      <ng-template #scopeFields>
+        @if (!choices().length) {
+          <div class="notice">
+            <strong>No AI provider configured</strong>
+            <p>
+              Add a server-side key and allowed model, then restart the API. Reading and
+              source-linked notes still work.
+            </p>
+          </div>
+        }
+        <fieldset class="setup-fields">
+          <legend><app-icon name="file" />Page range</legend>
+          <label
+            >First PDF page<input
+              type="number"
+              aria-describedby="scope-help"
+              [formField]="fields.page_start"
+          /></label>
+          <label
+            >Last PDF page<input
+              type="number"
+              aria-describedby="scope-help"
+              [formField]="fields.page_end"
+          /></label>
+        </fieldset>
+        <p class="scope-disclosure" id="scope-help">
+          <strong>{{ fullScope() ? 'Full extracted-text coverage' : 'Partial coverage' }}</strong>
+          · PDF pages {{ draft().page_start }}–{{ draft().page_end }} of
+          {{ detail().document.total_pages }} · {{ scopedCharacters() }} characters.
+        </p>
+        @if (!fullScope()) {
+          <p class="notice small">
+            This is one bounded section, not the whole paper or thesis. Other pages will not be
+            analyzed. Select another range explicitly to extend your reading.
+          </p>
+        }
+        @if (!validScope()) {
+          <p class="error small">Choose a valid range with readable text within the limits.</p>
+        }
+        <p class="small muted setup-limits">
+          <app-icon name="info" />Maximum 20 pages / 60,000 characters per request. Provider charges
+          and retention policies apply; limits are not a monetary budget. No automatic retries
+          across providers.
+        </p>
+      </ng-template>
+      <ng-template #submit>
+        <!-- The control identity follows the exact transmission consented to. -->
+        @for (consent of [consentKey()]; track consent) {
+          <label class="checkbox"
+            ><input type="checkbox" [formField]="consentFields.consent" /><span
+              >I agree to send these selected pages to
+              {{ choice()?.provider || 'the selected provider' }} for analysis. Provider charges and
+              retention policies apply.</span
+            ></label
+          >
+        }
+        <button
+          class="primary"
+          [disabled]="!canAnalyze()"
+          [attr.aria-busy]="isAnalyzing()"
+          (click)="analyze()"
+        >
+          {{ isAnalyzing() ? 'Creating reading map…' : 'Create reading map' }}
+          <app-icon name="arrow" />
+        </button>
+      </ng-template>
+      @if (error() && !setupModal()) {
         <p class="error" role="alert">{{ error() }}</p>
       }
       @if (pending() && !isAsking()) {
@@ -223,29 +285,12 @@
                 }
               }
             }
-            <div class="argument-cards">
-              @for (annotation of visibleAnnotations(); track annotation.id) {
-                <button
-                  [class]="'argument-card role-' + annotation.role"
-                  [attr.aria-pressed]="activeId() === annotation.id"
-                  (click)="selectAnnotation([annotation.id])"
-                >
-                  <span class="role-label"
-                    ><app-icon [name]="roleIcons[annotation.role]" />{{
-                      roleTitles[annotation.role]
-                    }}</span
-                  ><strong>{{ annotation.title }}</strong
-                  ><small
-                    >View source · PDF page {{ annotation.citation.page }} <app-icon name="arrow"
-                  /></small>
-                </button>
-              } @empty {
-                <p class="muted small">
-                  No supported source annotations in this selected scope. Missing roles are
-                  explained below; they are not evidence of absence from the full document.
-                </p>
-              }
-            </div>
+            @if (!visibleAnnotations().length) {
+              <p class="muted small">
+                No supported source annotations in this selected scope. Missing roles are explained
+                below; they are not evidence of absence from the full document.
+              </p>
+            }
           </details>
         </section>
       } @else {

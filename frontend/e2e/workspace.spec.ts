@@ -205,7 +205,6 @@ test('document-first map requires consent, links highlights and contextual quest
   await page.getByRole('checkbox').check();
   await analyze.click();
   await expect(page.getByRole('heading', { name: 'How this argument works' })).toBeVisible();
-  await expect(page.locator('.argument-card')).toHaveCount(6);
   await page.locator('.reading-context > summary').click();
   const source = page.locator('app-source-reader');
   await source
@@ -399,7 +398,7 @@ for (const theme of ['dark', 'light'] as const) {
     await page.getByText('Saved readings (1)', { exact: true }).click();
     await page.getByRole('button', { name: 'Pages 1–1 · openai / test-model' }).click();
     await page.locator('.reading-context > summary').click();
-    await page.locator('.argument-card').first().click();
+    await page.locator('.annotation-mark').first().click();
     await expect(page.locator('mark').first()).toContainText(quote);
     await page.getByRole('button', { name: 'Analyze another scope' }).click();
     await page.getByLabel('Last PDF page').fill('0');
@@ -650,11 +649,14 @@ test('verified thinking selection resets consent, reaches analysis and questions
   await expect(page.locator('.argument-overview')).toContainText('Thinking: Medium');
   await page.getByRole('button', { name: 'Change AI request settings' }).click();
   await thinking.selectOption('low');
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
   await expect(page.locator('#question-thinking-help')).toContainText('Question thinking: Low');
   await page.getByLabel('Question or challenge').fill('Why is this method appropriate?');
   const questionConsent = page.locator('.passage-question').getByRole('checkbox');
   await questionConsent.check();
+  await page.getByRole('button', { name: 'Change AI request settings' }).click();
   await thinking.selectOption('high');
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
   await expect(page.locator('#question-thinking-help')).toContainText('Question thinking: High');
   await expect(questionConsent).not.toBeChecked();
   await questionConsent.check();
@@ -689,6 +691,7 @@ test('Luna Max reaches analysis and questions through the native controls', asyn
   await expect(page.locator('.argument-overview')).toContainText('Thinking: Max');
   await page.getByRole('button', { name: 'Change AI request settings' }).click();
   await expect(thinking).toHaveValue('max');
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
   await page.getByLabel('Question or challenge').fill('Which alternative explanation remains?');
   await page.locator('.passage-question').getByRole('checkbox').check();
   await page.getByRole('button', { name: 'Ask with source evidence' }).click();
@@ -788,6 +791,8 @@ test('destination and thinking remain in one request-settings location when setu
     .selectOption('openai:gpt-6-luna');
   await page.getByRole('combobox', { name: 'Thinking', exact: true }).selectOption('max');
   await expect(page.locator('.request-settings select')).toHaveCount(2);
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
+  await expect(page.locator('.request-settings select')).toHaveCount(0);
   await page.getByRole('button', { name: 'Analyze another scope' }).click();
   await expect(page.locator('.request-settings select')).toHaveCount(2);
   await expect(page.getByRole('combobox', { name: 'Thinking', exact: true })).toHaveValue('max');

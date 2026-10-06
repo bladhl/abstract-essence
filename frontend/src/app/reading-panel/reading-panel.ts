@@ -13,6 +13,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { form, FormField } from '@angular/forms/signals';
 import { WorkspaceApi, errorMessage } from '../workspace-api';
 import {
@@ -47,7 +48,7 @@ interface DraftSource {
 }
 @Component({
   selector: 'app-reading-panel',
-  imports: [FormField, SourceReader, UiIcon],
+  imports: [FormField, NgTemplateOutlet, SourceReader, UiIcon],
   templateUrl: './reading-panel.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -56,7 +57,7 @@ export class ReadingPanel {
   private readonly document = inject(DOCUMENT);
   private readonly explanationHeading = viewChild<ElementRef<HTMLElement>>('explanationHeading');
   private readonly questionBox = viewChild<ElementRef<HTMLTextAreaElement>>('questionBox');
-  private readonly requestSettings = viewChild<ElementRef<HTMLDetailsElement>>('requestSettings');
+  private readonly setupDialog = viewChild<ElementRef<HTMLDialogElement>>('setupDialog');
   readonly detail = input.required<DocumentDetail>();
   readonly choices = input.required<ProviderChoice[]>();
   readonly citation = input<Citation | null>(null);
@@ -109,6 +110,10 @@ export class ReadingPanel {
     this.detail().document.id;
     return !this.current();
   });
+  // A first reading stays inline; analyzing another scope opens as a modal.
+  readonly setupModal = computed(() => !!this.current() && this.setupOpen());
+  readonly settingsOpen = signal(false);
+  readonly dialogOpen = computed(() => this.setupModal() || this.settingsOpen());
   readonly draft = linkedSignal<DraftSource, ScopeDraft>({
     source: () => ({ detail: this.detail(), choices: this.choices() }),
     computation: (source, previous) => {
@@ -244,6 +249,11 @@ export class ReadingPanel {
   readonly message = errorMessage;
   constructor() {
     afterRenderEffect(() => {
+      const dialog = this.setupDialog()?.nativeElement;
+      // showModal is missing in jsdom.
+      if (dialog && !dialog.open) dialog.showModal?.();
+    });
+    afterRenderEffect(() => {
       if (
         this.mobilePane() === 'explanation' &&
         this.document.defaultView?.matchMedia?.('(max-width: 960px)').matches
@@ -255,11 +265,11 @@ export class ReadingPanel {
     return `${choice.provider}:${choice.model}`;
   }
   editRequestSettings() {
-    const settings = this.requestSettings()?.nativeElement;
-    if (!settings) return;
-    settings.open = true;
-    settings.scrollIntoView({ block: 'nearest' });
-    settings.querySelector<HTMLSelectElement>('select')?.focus({ preventScroll: true });
+    this.settingsOpen.set(true);
+  }
+  closeDialog() {
+    if (this.setupModal()) this.setupOpen.set(false);
+    this.settingsOpen.set(false);
   }
   thinkingDescription(settings?: RequestSettings): string {
     return settings

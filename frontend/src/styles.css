@@ -280,7 +280,7 @@ small,
   width: 100%;
   height: 100%;
 }
-:is(h2, h3, summary, .selected-announcement, .role-label) > .ui-icon {
+:is(h2, h3, summary, legend, .selected-announcement, .field-label, .setup-limits) > .ui-icon {
   width: 18px;
   height: 18px;
   flex-basis: 18px;
@@ -1051,9 +1051,79 @@ app-reading-panel {
 .analysis-setup {
   margin-bottom: 24px;
 }
-.analysis-setup > div:first-child p {
-  margin-top: 8px;
-  max-width: 75ch;
+.setup-dialog {
+  /* The global reset removes the UA margin that centers modal dialogs. */
+  margin: auto;
+  width: min(44rem, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  padding: 0;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  box-shadow: 0 24px 64px rgb(0 0 0 / 0.45);
+}
+.setup-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+.setup-dialog::backdrop {
+  background: rgb(0 0 0 / 0.6);
+}
+.setup-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.setup-dialog-header p {
+  margin-top: 4px;
+}
+.setup-dialog-body {
+  overflow-y: auto;
+}
+.setup-step {
+  padding: 20px 24px;
+}
+.setup-step + .analysis-setup,
+.setup-step + .setup-step {
+  border-top: 1px solid var(--border);
+}
+.setup-step > h3 {
+  margin-bottom: 12px;
+  font-size: 1rem;
+}
+.setup-dialog .setup-fields {
+  margin-top: 0;
+}
+.setup-dialog .setup-fields > legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.setup-dialog-footer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+  padding: 16px 24px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+.setup-dialog-footer > .checkbox {
+  flex: 1 1 20rem;
+  margin: 0;
+}
+.setup-dialog-footer > .error {
+  flex-basis: 100%;
 }
 .setup-fields {
   display: grid;
@@ -1064,15 +1134,8 @@ app-reading-panel {
 .setup-fields > legend {
   grid-column: 1 / -1;
 }
-.request-settings {
-  margin-bottom: 0;
-  border-block: 1px solid var(--border);
-}
-.request-settings > summary span {
-  float: right;
-  margin-left: 12px;
-  font-size: 0.875rem;
-  font-weight: 400;
+.setup-inline-model {
+  margin-top: 18px;
 }
 .request-fields {
   display: grid;
@@ -1083,7 +1146,6 @@ app-reading-panel {
 }
 .request-settings > p {
   max-width: 80ch;
-  padding-bottom: 14px;
 }
 .request-settings-link {
   justify-content: flex-start;
@@ -1192,54 +1254,6 @@ app-reading-panel {
   background: var(--chip-color);
   border-color: var(--role-color);
   box-shadow: inset 0 0 0 1px var(--role-color);
-}
-.argument-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
-  gap: 8px;
-}
-.argument-card {
-  display: block;
-  padding: 12px 14px;
-  min-width: 0;
-  min-height: 88px;
-  text-align: left;
-  font-weight: 400;
-  background: var(--surface);
-  border: 1px solid var(--card-border);
-  border-radius: 8px;
-}
-.argument-card:not(:disabled):hover {
-  background: var(--surface-hover);
-}
-.argument-card[aria-pressed='true'] {
-  border-color: var(--role-color);
-  box-shadow: inset 0 0 0 1px var(--role-color);
-}
-.argument-card strong {
-  display: block;
-  font-size: 0.9375rem;
-  font-weight: 600;
-  line-height: 1.4;
-  margin-block: 4px;
-}
-.argument-card small {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-  color: var(--muted);
-}
-.argument-card small .ui-icon {
-  width: 14px;
-  height: 14px;
-  flex-basis: 14px;
-}
-.role-label {
-  display: flex;
-  align-items: center;
-  color: var(--role-color);
-  font-size: 0.875rem;
-  font-weight: 600;
 }
 .map-gaps {
   margin-top: 10px;
@@ -1855,13 +1869,6 @@ td {
   .annotation-filters button {
     flex: 0 0 auto;
   }
-  .argument-cards {
-    display: flex;
-    overflow-x: auto;
-  }
-  .argument-card {
-    flex: 0 0 190px;
-  }
   .source-sheet {
     padding: 16px;
     font-size: 1.0625rem;
@@ -1898,12 +1905,6 @@ td {
   .request-fields {
     grid-template-columns: minmax(0, 1fr);
     gap: 6px;
-  }
-  .request-settings > summary span {
-    float: none;
-    display: block;
-    margin-left: 0;
-    margin-top: 3px;
   }
   .form-row {
     grid-template-columns: minmax(0, 1fr);
