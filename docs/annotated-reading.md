@@ -4,9 +4,9 @@
 
 1. Import saves extracted source text locally; it never calls an AI provider.
 2. Review the exact destination, thinking level and page scope, grant consent and create a reading map. There is no prerequisite learner attempt.
-3. The saved result opens automatically: source and passage explanation, with the scoped overview, role filters and linked-passage index available in the reading guide.
-4. Select a card or keyboard-accessible mark to see the author's exact words, the assistant's explanation of its argumentative function and a caveat.
-5. Ask a contextual question with separate consent, or make a source-linked correction, application or explanation in your own words.
+3. The saved result opens automatically: the source with highlighted passages and role filters, and the selected passage's explanation. **About this reading** holds the scoped overview, coverage, gaps and the four critical lenses.
+4. Select a keyboard-accessible highlighted passage to see the assistant's explanation of its argumentative function, a caveat and the author's exact words.
+5. Ask a contextual question in the **Ask AI** tab after agreeing to data sharing, or make a source-linked correction, application or explanation in your own words.
 
 A contribution may be descriptive, theoretical, critical or empirical. A paper is not forced into a problem–successful-solution template. An absent role in a selected section is a coverage gap, not proof that the full paper lacks it.
 

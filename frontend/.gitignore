@@ -21,12 +21,8 @@ yarn-error.log
 *.sublime-workspace
 
 # Visual Studio Code
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-!.vscode/mcp.json
+# Editor and MCP settings can hold local paths or tokens; keep them out of the repository.
+.vscode/
 .history/*
 
 # Miscellaneous
