@@ -25,6 +25,7 @@ import {
   type AnnotationView,
   type Citation,
   type DocumentDetail,
+  type Feedback,
   type ProviderChoice,
   type RequestSettings,
   type Thinking,
@@ -33,6 +34,7 @@ import { initialScope, sourceAnnotations } from '../reading-map';
 import { SourceReader } from '../source-reader/source-reader';
 import { UiIcon, roleIcons, type IconName } from '../ui-icon';
 import { Overflow } from '../overflow';
+import { AnswerText } from '../answer-text';
 
 type Filter = AnnotationRole | 'all';
 type PendingReading =
@@ -49,7 +51,7 @@ interface DraftSource {
 }
 @Component({
   selector: 'app-reading-panel',
-  imports: [FormField, NgTemplateOutlet, Overflow, SourceReader, UiIcon],
+  imports: [AnswerText, FormField, NgTemplateOutlet, Overflow, SourceReader, UiIcon],
   templateUrl: './reading-panel.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -240,6 +242,19 @@ export class ReadingPanel {
   readonly answers = computed(() =>
     this.feedback.hasValue() ? [...this.feedback.value()].reverse() : [],
   );
+  // Answers asked about the current context come first; the rest stay one click away.
+  readonly answerGroups = computed(() => {
+    const context = this.askContext()?.citation;
+    const aboutContext = (reply: Feedback) => {
+      const asked = reply.output.request_context?.citation;
+      return !!asked && !!context && asked.page === context.page && asked.quote === context.quote;
+    };
+    const answers = this.answers();
+    return {
+      passage: answers.filter(aboutContext),
+      other: answers.filter((reply) => !aboutContext(reply)),
+    };
+  });
   readonly scopedCharacters = computed(() =>
     this.detail()
       .pages.filter((p) => p.number >= this.draft().page_start && p.number <= this.draft().page_end)
@@ -302,8 +317,15 @@ export class ReadingPanel {
     this.settingsOpen.set(true);
   }
   closeDialog() {
+    this.closeModal();
     if (this.setupModal()) this.setupOpen.set(false);
     this.settingsOpen.set(false);
+  }
+  // Close natively before @if removes the dialog: a removed open modal loses focus to <body>
+  // asynchronously, while close() returns it to the opener at once. jsdom has no close().
+  private closeModal() {
+    const dialog = this.setupDialog()?.nativeElement;
+    if (dialog?.open) dialog.close?.();
   }
   thinkingDescription(settings?: RequestSettings): string {
     return settings
@@ -364,6 +386,7 @@ export class ReadingPanel {
       if (this.detail().document.id !== id) return;
       this.current.set(result);
       this.mobilePane.set('source');
+      this.closeModal();
       this.setupOpen.set(false);
       this.page.set(sourceAnnotations(result)[0]?.citation.page ?? result.page_start);
       this.saved.emit();
@@ -379,6 +402,19 @@ export class ReadingPanel {
     this.error.set('');
     this.setupOpen.set(false);
     this.page.set(sourceAnnotations(item)[0]?.citation.page ?? item.page_start);
+  }
+  answerRole(reply: Feedback): string {
+    return reply.output.request_context?.role ?? 'neutral';
+  }
+  answerContext(reply: Feedback): string {
+    const context = reply.output.request_context;
+    if (!context) return '';
+    return `${context.role ? roleTitles[context.role] : 'Selected text'} p. ${context.citation.page}`;
+  }
+  viewCitation(citation: Citation) {
+    this.cite.emit(citation);
+    this.page.set(citation.page);
+    this.mobilePane.set('source');
   }
   askAbout(selected: Citation) {
     this.selectionContext.set(selected);

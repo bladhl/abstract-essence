@@ -33,6 +33,8 @@
   --control-border: #7a7a7a;
   /* Text and icon identify these buttons, so their outline can stay quiet (WCAG 1.4.11). */
   --button-border: rgba(255, 255, 255, 0.14);
+  /* Cited source text: a hue no annotation role uses, so citations never read as highlights. */
+  --citation: #5fd4c4;
   --field-background: #1a1a1a;
   --placeholder: #bebebe;
   --error-background: #363031;
@@ -94,6 +96,7 @@
   --card-border: #d0dbea;
   --control-border: #647991;
   --button-border: #c5d2e3;
+  --citation: #0e7a70;
   --field-background: #ffffff;
   --placeholder: #51647c;
   --error-background: #fff0f3;
@@ -1161,6 +1164,9 @@ app-reading-panel {
   background: var(--surface);
   border-top: 1px solid var(--border);
 }
+.setup-dialog-footer > button:only-child {
+  margin-left: auto;
+}
 .setup-dialog-footer > .checkbox {
   flex: 1 1 20rem;
   margin: 0;
@@ -1416,8 +1422,12 @@ app-source-reader {
   color: inherit;
 }
 .source-text .source-citation {
-  outline: 1px dashed var(--focus);
+  outline: 2px dashed var(--citation);
   outline-offset: 2px;
+}
+.source-text mark.source-citation:not(.annotation-mark) {
+  background: transparent;
+  color: inherit;
 }
 .excerpt-picker {
   margin-top: 4px;
@@ -1664,11 +1674,22 @@ app-source-reader {
 }
 .request-line {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 0 12px;
-  margin-block: 6px 4px;
+  gap: 12px;
+  margin-top: 6px;
+}
+.request-line > span {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.consent-hint {
+  gap: 6px;
+  font-size: 0.875rem;
+}
+.consent-hint > .ui-icon {
+  width: 16px;
+  height: 16px;
+  flex-basis: 16px;
 }
 .ask-button {
   width: 100%;
@@ -1694,7 +1715,86 @@ app-source-reader {
   margin-top: 12px;
   padding: 0 14px;
   border: 1px solid var(--card-border);
+  border-left: 3px solid var(--role-color);
   border-radius: 8px;
+}
+.role-neutral {
+  --role-color: var(--control-border);
+}
+.also-cited > .muted {
+  margin-right: 4px;
+}
+.answer-paragraph {
+  margin-block: 12px;
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  white-space: pre-line;
+}
+/* Inline source references: small by design (WCAG target-size exception for inline targets). */
+.answer-ref {
+  display: inline-flex;
+  align-items: center;
+  margin-inline: 2px;
+  vertical-align: 1px;
+  border: 1px solid var(--button-border);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.answer-ref > button {
+  min-height: 0;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+.answer-ref > .ref-link {
+  padding-right: 2px;
+  color: var(--accent-text);
+}
+.answer-ref > .ref-peek {
+  padding-left: 4px;
+  color: var(--muted);
+}
+.answer-ref > .ref-peek .ui-icon {
+  width: 14px;
+  height: 14px;
+  flex-basis: 14px;
+}
+/* Compound selector: .popover-panel is declared later and would reset the inset. */
+.popover-panel.ref-popover {
+  left: anchor(left);
+  position-try-fallbacks:
+    flip-block,
+    flip-inline,
+    flip-block flip-inline;
+  width: min(24rem, calc(100vw - 32px));
+  max-height: min(50vh, 24rem);
+  padding: 4px 14px 8px;
+  overflow-y: auto;
+  white-space: normal;
+}
+.ref-popover > .content-label {
+  margin-top: 10px;
+}
+.ref-quote {
+  display: block;
+  margin-block: 6px 2px;
+  padding-left: 10px;
+  border-left: 3px solid var(--role-color);
+  color: var(--reading-text);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  white-space: pre-line;
+}
+.other-answers {
+  margin-top: 20px;
+}
+.other-answers > summary {
+  padding-block: 10px;
+  color: var(--muted);
+  font-weight: 600;
+  cursor: pointer;
 }
 .feedback > summary {
   display: grid;

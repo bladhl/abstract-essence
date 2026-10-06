@@ -137,10 +137,7 @@
                   <p>{{ insight.interpretation }}</p>
                   <p class="limitation">{{ insight.limitation }}</p>
                   @if (insight.author_excerpt; as excerpt) {
-                    <button
-                      class="citation-button"
-                      (click)="cite.emit(excerpt); page.set(excerpt.page); about.close()"
-                    >
+                    <button class="citation-button" (click)="viewCitation(excerpt); about.close()">
                       View PDF page {{ excerpt.page }}
                     </button>
                   } @else {
@@ -222,8 +219,31 @@
                 </footer>
               </div>
             } @else {
+              <section class="setup-step" aria-labelledby="setup-consent-title">
+                <h3 id="setup-consent-title"><app-icon name="lock" />Data sharing</h3>
+                <!-- The control identity follows the exact transmission consented to. -->
+                @for (consent of [questionConsentKey()]; track consent) {
+                  <label class="checkbox"
+                    ><input
+                      type="checkbox"
+                      [formField]="questionConsentFields.consent"
+                      [attr.autofocus]="questionConsent().consent ? null : ''"
+                    /><span
+                      >I agree to send pages {{ current()?.page_start }}–{{ current()?.page_end }},
+                      the AI interpretation, this passage and my question to
+                      {{ choice()?.provider || 'the selected provider' }}. Provider charges and
+                      retention policies apply.</span
+                    ></label
+                  >
+                }
+              </section>
               <footer class="setup-dialog-footer">
-                <button class="primary" (click)="closeDialog()">
+                <!-- Done confirms the settings, consent included; the close button cancels. -->
+                <button
+                  class="primary"
+                  [disabled]="!questionConsent().consent"
+                  (click)="closeDialog()"
+                >
                   <app-icon name="check" />Done
                 </button>
               </footer>
@@ -599,28 +619,24 @@
             placeholder="Why does this count as evidence? What alternative explanation remains? (8–2,000 characters)"
           ></textarea>
         </label>
-        <p class="request-line small muted">
+        <div class="request-line small muted">
           <span id="question-thinking-help"
             >{{ choice() ? choice()!.provider + ' / ' + choice()!.model : 'No AI destination' }} ·
             Question thinking: {{ thinkingTitles[thinkingDraft().thinking] }}</span
           >
           <button
-            class="quiet link-button"
+            class="icon-button"
             aria-label="Change AI request settings"
+            title="Change AI request settings"
             (click)="editRequestSettings()"
           >
-            Change
+            <app-icon name="settings" />
           </button>
-        </p>
-        @for (consent of [questionConsentKey()]; track consent) {
-          <label class="checkbox"
-            ><input type="checkbox" [formField]="questionConsentFields.consent" /><span
-              >I agree to send pages {{ analysis.page_start }}–{{ analysis.page_end }}, the AI
-              interpretation, this passage and my question to
-              {{ choice()?.provider || 'the selected provider' }}. Provider charges and retention
-              policies apply.</span
-            ></label
-          >
+        </div>
+        @if (!questionConsent().consent) {
+          <button class="quiet link-button consent-hint" (click)="editRequestSettings()">
+            <app-icon name="lock" />Agree to data sharing to ask
+          </button>
         }
         <button
           class="primary ask-button"
@@ -640,40 +656,54 @@
         @if (feedback.error()) {
           <p class="error" role="alert">{{ message(feedback.error()) }}</p>
         }
-        @if (answers().length) {
-          <h3 class="answers-heading">Previous answers ({{ answers().length }})</h3>
-          @for (reply of answers(); track reply.id) {
-            <details class="feedback" [open]="$first">
-              <summary>
-                <span class="feedback-question">{{ reply.question }}</span>
-                <span class="small muted"
-                  >{{ reply.provider }} / {{ reply.model }} ·
-                  {{ thinkingDescription(reply.output.request_settings) }}
-                  @if (reply.output.request_context; as context) {
-                    · {{ context.role ? roleTitles[context.role] : 'Selected passage' }} p.
-                    {{ context.citation.page }}
-                  }
-                </span>
-              </summary>
-              <p>{{ reply.output.answer }}</p>
-              @for (reference of reply.output.citations; track $index) {
-                <blockquote>{{ reference.quote }}</blockquote>
-                <button
-                  class="citation-button"
-                  (click)="cite.emit(reference); page.set(reference.page)"
-                >
-                  View page {{ reference.page }}
-                </button>
-              }
-              @if (!reply.output.citations.length) {
-                <p class="notice small">
-                  No supporting excerpt in this answer. Do not treat it as a source-backed finding.
-                </p>
-              }
-              <p class="limitation">{{ reply.output.limitation }}</p>
-            </details>
+        @let groups = answerGroups();
+        @if (groups.passage.length) {
+          <h3 class="answers-heading">Answers about this passage ({{ groups.passage.length }})</h3>
+          @for (reply of groups.passage; track reply.id) {
+            <ng-container
+              [ngTemplateOutlet]="answerItem"
+              [ngTemplateOutletContext]="{ $implicit: reply, open: $first }"
+            />
           }
         }
+        @if (groups.other.length) {
+          <details class="other-answers">
+            <summary>Other questions in this reading ({{ groups.other.length }})</summary>
+            @for (reply of groups.other; track reply.id) {
+              <ng-container
+                [ngTemplateOutlet]="answerItem"
+                [ngTemplateOutletContext]="{ $implicit: reply, open: false }"
+              />
+            }
+          </details>
+        }
+        <ng-template #answerItem let-reply let-open="open">
+          <!-- Each answer carries the color of the passage it was asked about. -->
+          <details [class]="'feedback role-' + answerRole(reply)" [open]="open">
+            <summary>
+              <span class="feedback-question">{{ reply.question }}</span>
+              <span class="small muted"
+                >{{ reply.provider }} / {{ reply.model }} ·
+                {{ thinkingDescription(reply.output.request_settings) }}
+                @if (answerContext(reply); as label) {
+                  · {{ label }}
+                }
+              </span>
+            </summary>
+            <app-answer-text
+              [text]="reply.output.answer"
+              [pages]="detail().pages"
+              [citations]="reply.output.citations"
+              (view)="viewCitation($event)"
+            />
+            @if (!reply.output.citations.length) {
+              <p class="notice small">
+                No supporting excerpt in this answer. Do not treat it as a source-backed finding.
+              </p>
+            }
+            <p class="limitation">{{ reply.output.limitation }}</p>
+          </details>
+        </ng-template>
       </section>
     }
   </aside>

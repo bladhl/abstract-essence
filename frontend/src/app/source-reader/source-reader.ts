@@ -89,6 +89,16 @@ export class SourceReader {
         });
       }
     });
+    // Registered after the active-passage scroll so an opened citation wins on a page change.
+    afterRenderEffect(() => {
+      const citation = this.citation();
+      if (!citation || citation.page !== this.page()) return;
+      const container = this.source()?.nativeElement;
+      const cited = container?.querySelector<HTMLElement>('.source-citation');
+      if (!container || !cited) return;
+      const offset = cited.getBoundingClientRect().top - container.getBoundingClientRect().top;
+      container.scrollTo({ top: Math.max(0, container.scrollTop + offset - 20) });
+    });
   }
   label(annotations: AnnotationView[]): string {
     return annotations.map((a) => `${roleTitles[a.role]}: ${a.title}`).join('; ');

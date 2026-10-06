@@ -371,35 +371,59 @@ describe('ReadingPanel', () => {
         thinking_levels: ['default', 'low', 'medium', 'high'],
       },
     ]);
+    const choose = async (help: string, level: string) => {
+      const select: HTMLSelectElement = fixture.nativeElement.querySelector(
+        `select[aria-describedby="${help}"]`,
+      );
+      select.value = level;
+      select.dispatchEvent(new Event('input'));
+      select.dispatchEvent(new Event('change'));
+      await fixture.whenStable();
+    };
+    const analysisBox = (): HTMLInputElement =>
+      fixture.nativeElement.querySelector('.analysis-setup input[type="checkbox"]');
+    const questionBox = (): HTMLInputElement =>
+      fixture.nativeElement.querySelector(
+        '[aria-labelledby="setup-consent-title"] input[type="checkbox"]',
+      );
+
     panel.setupOpen.set(true);
     await fixture.whenStable();
-    const priorAnalysis: HTMLInputElement = fixture.nativeElement.querySelector(
-      '.analysis-setup input[type="checkbox"]',
-    );
-    const priorQuestion: HTMLInputElement = fixture.nativeElement.querySelector(
-      '.passage-question input[type="checkbox"]',
-    );
+    const priorAnalysis = analysisBox();
     priorAnalysis.click();
-    priorQuestion.click();
     await fixture.whenStable();
     expect(panel.consentDraft().consent).toBe(true);
-    expect(panel.questionConsent().consent).toBe(true);
-    const select: HTMLSelectElement = fixture.nativeElement.querySelector(
-      'select[aria-describedby="setup-thinking-help"]',
-    );
-    select.value = 'high';
-    select.dispatchEvent(new Event('input'));
-    select.dispatchEvent(new Event('change'));
-    await fixture.whenStable();
+    await choose('setup-thinking-help', 'high');
     expect(priorAnalysis.isConnected).toBe(false);
-    expect(priorQuestion.isConnected).toBe(false);
-    expect(
-      fixture.nativeElement.querySelector('.analysis-setup input[type="checkbox"]').checked,
-    ).toBe(false);
-    expect(
-      fixture.nativeElement.querySelector('.passage-question input[type="checkbox"]').checked,
-    ).toBe(false);
+    expect(analysisBox().checked).toBe(false);
     expect(panel.consentFields.consent().value()).toBe(false);
+
+    panel.setupOpen.set(false);
+    panel.settingsOpen.set(true);
+    await fixture.whenStable();
+    const priorQuestion = questionBox();
+    priorQuestion.click();
+    await fixture.whenStable();
+    expect(panel.questionConsent().consent).toBe(true);
+    await choose('question-thinking-help', 'medium');
+    expect(priorQuestion.isConnected).toBe(false);
+    expect(questionBox().checked).toBe(false);
     expect(panel.questionConsentFields.consent().value()).toBe(false);
+  });
+  it('requires consent before asking or confirming the request settings', async () => {
+    const { fixture, panel } = await setup(true);
+    panel.questionDraft.set({ question: 'Which alternative explanation remains?' });
+    panel.settingsOpen.set(true);
+    await fixture.whenStable();
+    const done = (): HTMLButtonElement =>
+      [...fixture.nativeElement.querySelectorAll('.setup-dialog-footer button')].find(
+        (button: HTMLButtonElement) => button.textContent?.includes('Done'),
+      );
+    expect(panel.canAsk()).toBe(false);
+    expect(done().disabled).toBe(true);
+    panel.questionConsent.set({ consent: true });
+    await fixture.whenStable();
+    expect(panel.canAsk()).toBe(true);
+    expect(done().disabled).toBe(false);
   });
 });
