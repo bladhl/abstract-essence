@@ -227,6 +227,7 @@ test('document-first map requires consent, links highlights and contextual quest
   await expect(
     page.locator('.annotation-inspector').getByText('This passage performs the evidence role'),
   ).toBeVisible();
+  await page.getByRole('tab', { name: 'Ask AI' }).click();
   await page.getByLabel('Question or challenge').fill('Does this design establish causality?');
   await expect(page.getByRole('button', { name: 'Ask with source evidence' })).toBeDisabled();
   await page.getByRole('checkbox').check();
@@ -237,7 +238,7 @@ test('document-first map requires consent, links highlights and contextual quest
   await page.getByRole('button', { name: 'All annotations', exact: true }).click();
   await expect(page.getByText('An excerpt repeats on this page.')).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
-  await page.getByRole('button', { name: 'Explain in my own words' }).click();
+  await page.getByRole('button', { name: 'In my words', exact: true }).click();
   await expect(page.getByLabel('Note type')).toHaveValue('attempt');
   await page
     .getByLabel('Your thinking')
@@ -644,6 +645,7 @@ test('verified thinking selection resets consent, reaches analysis and questions
   expect(analysisRequests[0]).not.toHaveProperty('thinking_levels');
   expect(analysisRequests[0]).not.toHaveProperty('destination');
   await expect(page.locator('.argument-overview')).toContainText('Thinking: Medium');
+  await page.getByRole('tab', { name: 'Ask AI' }).click();
   await page.getByRole('button', { name: 'Change AI request settings' }).click();
   await thinking.selectOption('low');
   await page.getByRole('button', { name: 'Done', exact: true }).click();
@@ -686,6 +688,7 @@ test('Luna Max reaches analysis and questions through the native controls', asyn
   await page.locator('.analysis-setup').getByRole('checkbox').check();
   await page.getByRole('button', { name: 'Create reading map', exact: true }).click();
   await expect(page.locator('.argument-overview')).toContainText('Thinking: Max');
+  await page.getByRole('tab', { name: 'Ask AI' }).click();
   await page.getByRole('button', { name: 'Change AI request settings' }).click();
   await expect(thinking).toHaveValue('max');
   await page.getByRole('button', { name: 'Done', exact: true }).click();
@@ -749,7 +752,7 @@ test('mobile study view preserves source position and exposes explanations witho
   const marked = page.locator('.annotation-mark').first();
   await marked.focus();
   await marked.press('Enter');
-  await expect(page.getByRole('heading', { name: 'Why this part matters' })).toBeFocused();
+  await expect(page.locator('#inspector-heading')).toBeFocused();
   await expect(source).not.toBeVisible();
   await page.getByRole('button', { name: 'Read source', exact: true }).click();
   await expect(source).toBeVisible();
@@ -782,6 +785,7 @@ test('destination and thinking remain in one request-settings location when setu
   page,
 }) => {
   await mockWorkspace(page, true, true, true);
+  await page.getByRole('tab', { name: 'Ask AI' }).click();
   await page.getByRole('button', { name: 'Change AI request settings' }).click();
   await page
     .getByRole('combobox', { name: 'AI destination', exact: true })

@@ -31,7 +31,8 @@ import {
 } from '../models';
 import { initialScope, sourceAnnotations } from '../reading-map';
 import { SourceReader } from '../source-reader/source-reader';
-import { UiIcon, roleIcons } from '../ui-icon';
+import { UiIcon, roleIcons, type IconName } from '../ui-icon';
+import { Overflow } from '../overflow';
 
 type Filter = AnnotationRole | 'all';
 type PendingReading =
@@ -48,7 +49,7 @@ interface DraftSource {
 }
 @Component({
   selector: 'app-reading-panel',
-  imports: [FormField, NgTemplateOutlet, SourceReader, UiIcon],
+  imports: [FormField, NgTemplateOutlet, Overflow, SourceReader, UiIcon],
   templateUrl: './reading-panel.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -190,9 +191,38 @@ export class ReadingPanel {
   readonly roles = computed(() => [...new Set(this.annotations().map((a) => a.role))]);
   readonly activeId = linkedSignal(() => this.annotations()[0]?.id ?? '');
   readonly active = computed(() => this.annotations().find((a) => a.id === this.activeId()));
+  // What a question carries: the text the reader selected, else the active passage.
+  readonly askContext = computed<{ label: string; icon: IconName; citation: Citation } | null>(
+    () => {
+      const picked = this.selectionContext();
+      if (picked) return { label: 'Selected text', icon: 'quote', citation: picked };
+      const active = this.active();
+      return active
+        ? {
+            label: roleTitles[active.role],
+            icon: roleIcons[active.role],
+            citation: active.citation,
+          }
+        : null;
+    },
+  );
   readonly overlapIds = linkedSignal<string[]>(() => {
     this.current()?.id;
     return [];
+  });
+  // The right panel starts on the explanation whenever another document opens.
+  readonly inspectorTab = linkedSignal<'explanation' | 'ask'>(() => {
+    this.detail().document.id;
+    return 'explanation';
+  });
+  // Blocks shrink to fit the panel; each newly selected passage starts collapsed again.
+  readonly quoteExpanded = linkedSignal(() => {
+    this.activeId();
+    return false;
+  });
+  readonly explanationExpanded = linkedSignal(() => {
+    this.activeId();
+    return false;
   });
   readonly overlap = computed(() =>
     this.annotations().filter((a) => this.overlapIds().includes(a.id)),
@@ -206,6 +236,10 @@ export class ReadingPanel {
     loader: ({ params }) => this.api.feedback(params),
     defaultValue: [],
   });
+  // Newest answer first; the API lists them chronologically.
+  readonly answers = computed(() =>
+    this.feedback.hasValue() ? [...this.feedback.value()].reverse() : [],
+  );
   readonly scopedCharacters = computed(() =>
     this.detail()
       .pages.filter((p) => p.number >= this.draft().page_start && p.number <= this.draft().page_end)
@@ -288,6 +322,7 @@ export class ReadingPanel {
     if (!annotation) return;
     this.activeId.set(annotation.id);
     this.overlapIds.set(ids);
+    this.inspectorTab.set('explanation');
     this.page.set(annotation.citation.page);
     this.mobilePane.set('explanation');
   }
@@ -303,7 +338,9 @@ export class ReadingPanel {
   }
   practice() {
     const active = this.active();
-    if (active) this.questionDraft.set({ question: active.question });
+    if (!active) return;
+    this.questionDraft.set({ question: active.question });
+    this.openAsk();
   }
   async analyze() {
     if (!this.canAnalyze()) return;
@@ -345,8 +382,12 @@ export class ReadingPanel {
   }
   askAbout(selected: Citation) {
     this.selectionContext.set(selected);
+    this.openAsk();
+  }
+  private openAsk() {
+    this.inspectorTab.set('ask');
     this.mobilePane.set('explanation');
-    // Wait for the question box to render (it may be in a hidden mobile pane).
+    // Wait for the question box to render (it may be in a hidden mobile pane or tab).
     setTimeout(() => this.questionBox()?.nativeElement.focus());
   }
   async ask() {

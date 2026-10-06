@@ -18,7 +18,7 @@
           <div
             #savedMenu
             id="saved-readings-menu"
-            class="saved-readings-menu"
+            class="popover-panel saved-readings-menu"
             popover
             role="group"
             aria-label="Saved readings"
@@ -71,7 +71,8 @@
             <div>
               <h2 id="about-dialog-title"><app-icon name="info" />About this reading</h2>
               <p class="small muted" id="about-dialog-provenance">
-                Assistant interpretation · verify against the source
+                Assistant interpretation · verify against the source. Excerpts are matched to the
+                extracted text; their presence does not prove scientific validity.
               </p>
             </div>
             <button
@@ -124,6 +125,32 @@
                 </section>
               }
             }
+            <section class="setup-step original-lenses" aria-labelledby="about-lenses-title">
+              <h3 id="about-lenses-title"><app-icon name="compare" />Four critical lenses</h3>
+              @if (analysis.attempt) {
+                <h4>Your original attempt</h4>
+                <p>{{ analysis.attempt }}</p>
+              }
+              @for (insight of analysis.output.insights; track insight.lens) {
+                <article class="insight">
+                  <h4>{{ lensTitles[insight.lens] }}</h4>
+                  <p>{{ insight.interpretation }}</p>
+                  <p class="limitation">{{ insight.limitation }}</p>
+                  @if (insight.author_excerpt; as excerpt) {
+                    <button
+                      class="citation-button"
+                      (click)="cite.emit(excerpt); page.set(excerpt.page); about.close()"
+                    >
+                      View PDF page {{ excerpt.page }}
+                    </button>
+                  } @else {
+                    <p class="notice small">No supporting excerpt identified in this scope.</p>
+                  }
+                </article>
+              }
+              <p>{{ analysis.output.learning_feedback }}</p>
+              <p><strong>Next question:</strong> {{ analysis.output.next_question }}</p>
+            </section>
           </div>
         </dialog>
         <nav class="annotation-filters" aria-label="Annotation categories">
@@ -385,95 +412,184 @@
   <aside
     [class]="'annotation-inspector surface role-' + (active()?.role ?? 'approach')"
     id="reading-explanation"
-    aria-labelledby="inspector-heading"
+    aria-label="Passage"
   >
-    <h2 #explanationHeading tabindex="-1" id="inspector-heading">
-      <app-icon name="info" />Why this part matters
-    </h2>
-    @if (active(); as selected) {
-      @for (passage of [selected]; track passage.id) {
-        <div class="passage-content">
-          @if (overlap().length > 1) {
-            <div class="notice small">
-              <p>This passage has more than one possible role. Explore each interpretation:</p>
-              @for (item of overlap(); track item.id) {
-                <button
-                  [attr.aria-pressed]="activeId() === item.id"
-                  (click)="activeId.set(item.id)"
-                >
-                  {{ roleTitles[item.role] }}: {{ item.title }}
+    @if (current()) {
+      <div class="inspector-tabs" role="tablist" aria-label="Passage panel">
+        <button
+          #explanationTab
+          role="tab"
+          id="inspector-tab-explanation"
+          aria-controls="inspector-panel-explanation"
+          [attr.aria-selected]="inspectorTab() === 'explanation'"
+          [attr.tabindex]="inspectorTab() === 'explanation' ? 0 : -1"
+          (click)="inspectorTab.set('explanation')"
+          (keydown.arrowright)="inspectorTab.set('ask'); askTab.focus()"
+          (keydown.arrowleft)="inspectorTab.set('ask'); askTab.focus()"
+        >
+          <app-icon name="info" />Explanation
+        </button>
+        <button
+          #askTab
+          role="tab"
+          id="inspector-tab-ask"
+          aria-controls="inspector-panel-ask"
+          [attr.aria-selected]="inspectorTab() === 'ask'"
+          [attr.tabindex]="inspectorTab() === 'ask' ? 0 : -1"
+          (click)="inspectorTab.set('ask')"
+          (keydown.arrowright)="inspectorTab.set('explanation'); explanationTab.focus()"
+          (keydown.arrowleft)="inspectorTab.set('explanation'); explanationTab.focus()"
+        >
+          <app-icon name="send" />Ask AI
+          @if (answers().length) {
+            <span class="tab-count">{{ answers().length }}</span>
+          }
+        </button>
+      </div>
+    }
+    <div
+      class="inspector-panel"
+      role="tabpanel"
+      id="inspector-panel-explanation"
+      aria-labelledby="inspector-tab-explanation"
+      [hidden]="!!current() && inspectorTab() !== 'explanation'"
+      [class.fit-panel]="!explanationExpanded() && !quoteExpanded()"
+    >
+      @if (active(); as selected) {
+        @for (passage of [selected]; track passage.id) {
+          <div class="passage-content">
+            @if (overlap().length > 1) {
+              <div class="passage-roles" role="group" aria-labelledby="passage-roles-label">
+                <p class="small muted" id="passage-roles-label">
+                  This passage has more than one possible role. Choose one:
+                </p>
+                <div class="passage-roles-row">
+                  @for (item of overlap(); track item.id) {
+                    <button
+                      [class]="'role-chip role-' + item.role"
+                      [attr.aria-pressed]="activeId() === item.id"
+                      [attr.aria-label]="roleTitles[item.role] + ': ' + item.title"
+                      [title]="item.title"
+                      (click)="activeId.set(item.id)"
+                    >
+                      <app-icon [name]="roleIcons[item.role]" />{{ roleTitles[item.role] }}
+                    </button>
+                  }
+                </div>
+              </div>
+            }
+            <p class="selected-announcement small" role="status">
+              <app-icon [name]="roleIcons[selected.role]" />{{ roleTitles[selected.role] }} · PDF
+              page {{ selected.citation.page }}
+            </p>
+            <h2 #explanationHeading tabindex="-1" id="inspector-heading">{{ selected.title }}</h2>
+            <p class="annotation-explanation fit-block" appOverflow #explanationFit="overflow">
+              {{ selected.explanation }}
+            </p>
+            @if (explanationFit.overflowing() || explanationExpanded()) {
+              <button
+                class="fit-toggle"
+                [attr.aria-expanded]="explanationExpanded()"
+                (click)="explanationExpanded.set(!explanationExpanded())"
+              >
+                {{ explanationExpanded() ? 'Show less' : 'Show more' }}
+                <app-icon name="chevron" [class.up]="explanationExpanded()" />
+              </button>
+            }
+            <p class="limitation">
+              <app-icon name="limits" /><span><strong>Caveat:</strong> {{ selected.caveat }}</span>
+            </p>
+            <p class="content-label"><app-icon name="quote" />Author's words</p>
+            <blockquote class="author-quote fit-block" appOverflow #quoteFit="overflow">
+              {{ selected.citation.quote }}
+            </blockquote>
+            @if (quoteFit.overflowing() || quoteExpanded()) {
+              <button
+                class="fit-toggle"
+                [attr.aria-expanded]="quoteExpanded()"
+                (click)="quoteExpanded.set(!quoteExpanded())"
+              >
+                {{ quoteExpanded() ? 'Show less' : 'Show more' }}
+                <app-icon name="chevron" [class.up]="quoteExpanded()" />
+              </button>
+            }
+            <div class="annotation-actions" role="group" aria-labelledby="annotation-actions-label">
+              <p class="content-label" id="annotation-actions-label">
+                <app-icon name="note" />Add to my notebook
+              </p>
+              <button (click)="note('correction')"><app-icon name="pencil" />Correction</button
+              ><button (click)="note('application')"><app-icon name="link" />Application</button
+              ><button (click)="note('attempt')"><app-icon name="note" />In my words</button>
+            </div>
+            <div class="think-about">
+              <p class="content-label"><app-icon name="problem" />Think about</p>
+              <p>{{ selected.question }}</p>
+              @if (current()) {
+                <button class="quiet link-button" (click)="practice()">
+                  Ask AI about this <app-icon name="arrow" />
                 </button>
               }
             </div>
-          }
-          <h3>{{ selected.title }}</h3>
-          <p class="selected-announcement small" role="status">
-            <app-icon [name]="roleIcons[selected.role]" />Selected {{ roleTitles[selected.role] }} ·
-            PDF page {{ selected.citation.page }}
-          </p>
-          <p class="content-label">
-            <app-icon name="quote" />Author's words · page {{ selected.citation.page }}
-          </p>
-          <blockquote>{{ selected.citation.quote }}</blockquote>
-          <p class="small muted">
-            Exact excerpt matched to extracted text. Presence is not proof of scientific validity or
-            of this interpretation.
-          </p>
-          <p class="content-label"><app-icon name="info" />Assistant's interpretation</p>
-          <p class="annotation-explanation">{{ selected.explanation }}</p>
-          <p class="limitation">
-            <app-icon name="limits" /><span
-              ><strong>Question this reading:</strong> {{ selected.caveat }}</span
-            >
-          </p>
-          <div class="annotation-actions">
-            <button (click)="note('correction')">
-              <app-icon name="pencil" />Correct this reading</button
-            ><button (click)="note('application')">
-              <app-icon name="link" />Apply to my project</button
-            ><button (click)="note('attempt')">
-              <app-icon name="note" />Explain in my own words
-            </button>
           </div>
-          <details class="optional-practice">
-            <summary><app-icon name="problem" />A question to think with</summary>
-            <p>{{ selected.question }}</p>
-            <p class="small muted">
-              Optional, after the explanation. Your own reasoning can differ from the assistant's.
-            </p>
-            <button class="secondary" (click)="practice()">Explore this question</button>
-          </details>
-        </div>
+        }
+      } @else {
+        <p class="muted inspector-empty">
+          Select a highlighted passage in the text. You can always read and annotate without AI.
+        </p>
       }
-    } @else {
-      <p class="muted inspector-empty">
-        Select a marked passage or argument card. You can always read and annotate without AI.
-      </p>
-    }
+    </div>
     @if (current(); as analysis) {
-      <section class="passage-question" aria-label="Question this reading">
-        <h3><app-icon name="send" />Ask at this passage</h3>
-        <p class="small muted">{{ coverage(analysis) }}</p>
-        @if (selectionContext(); as picked) {
-          <p class="selection-chip small">
-            <span
-              >About: "{{
-                picked.quote.length > 80 ? picked.quote.slice(0, 80) + '…' : picked.quote
-              }}" · p. {{ picked.page }}</span
+      <section
+        class="inspector-panel passage-question"
+        role="tabpanel"
+        id="inspector-panel-ask"
+        aria-labelledby="inspector-tab-ask"
+        [hidden]="inspectorTab() !== 'ask'"
+      >
+        @if (askContext(); as context) {
+          <div class="context-chip small">
+            <app-icon [name]="context.icon" /><span
+              >Context: {{ context.label }} · PDF page {{ context.citation.page }}</span
             >
             <button
-              class="quiet"
-              (click)="selectionContext.set(null)"
-              aria-label="Remove selected passage"
+              class="quiet icon-button context-trigger"
+              popovertarget="ask-context"
+              aria-label="View context"
+              title="View context"
             >
-              <app-icon name="close" />
+              <app-icon name="eye" />
             </button>
-          </p>
-        } @else if (active(); as selected) {
-          <p class="small muted">
-            Sent as context: {{ roleTitles[selected.role] }}, PDF page {{ selected.citation.page }},
-            and the author's excerpt shown above. Your question stays separate.
-          </p>
+            @if (selectionContext()) {
+              <button
+                class="quiet icon-button"
+                (click)="selectionContext.set(null)"
+                aria-label="Remove selected passage"
+                title="Remove selected passage"
+              >
+                <app-icon name="close" />
+              </button>
+            }
+          </div>
+          <div
+            id="ask-context"
+            class="popover-panel context-popover"
+            popover
+            role="group"
+            aria-labelledby="ask-context-title"
+          >
+            <p class="content-label" id="ask-context-title">
+              <app-icon name="send" />Sent with your question
+            </p>
+            <p class="selected-announcement small">
+              <app-icon [name]="context.icon" />{{ context.label }} · PDF page
+              {{ context.citation.page }}
+            </p>
+            <blockquote>{{ context.citation.quote }}</blockquote>
+            <p class="small muted">
+              Also sent: PDF pages {{ analysis.page_start }}–{{ analysis.page_end }} of this reading
+              and the AI interpretation.
+            </p>
+          </div>
         }
         <label class="question-prompt"
           >Question or challenge this passage<textarea
@@ -483,26 +599,31 @@
             placeholder="Why does this count as evidence? What alternative explanation remains? (8–2,000 characters)"
           ></textarea>
         </label>
-        <button class="quiet request-settings-link" (click)="editRequestSettings()">
-          Change AI request settings
-        </button>
-        <p class="small muted" id="question-thinking-help">
-          Question thinking: {{ thinkingTitles[thinkingDraft().thinking] }}. This applies to the
-          next question, not the saved reading. Higher levels may increase latency and charges.
+        <p class="request-line small muted">
+          <span id="question-thinking-help"
+            >{{ choice() ? choice()!.provider + ' / ' + choice()!.model : 'No AI destination' }} ·
+            Question thinking: {{ thinkingTitles[thinkingDraft().thinking] }}</span
+          >
+          <button
+            class="quiet link-button"
+            aria-label="Change AI request settings"
+            (click)="editRequestSettings()"
+          >
+            Change
+          </button>
         </p>
         @for (consent of [questionConsentKey()]; track consent) {
           <label class="checkbox"
             ><input type="checkbox" [formField]="questionConsentFields.consent" /><span
-              >I agree to send this saved reading's pages {{ analysis.page_start }}–{{
-                analysis.page_end
-              }}, AI interpretation, my question and selected passage context to
+              >I agree to send pages {{ analysis.page_start }}–{{ analysis.page_end }}, the AI
+              interpretation, this passage and my question to
               {{ choice()?.provider || 'the selected provider' }}. Provider charges and retention
               policies apply.</span
             ></label
           >
         }
         <button
-          class="secondary"
+          class="primary ask-button"
           (click)="ask()"
           [disabled]="!canAsk()"
           [attr.aria-busy]="isAsking()"
@@ -519,62 +640,41 @@
         @if (feedback.error()) {
           <p class="error" role="alert">{{ message(feedback.error()) }}</p>
         }
-        @for (reply of feedback.value(); track reply.id) {
-          <article class="feedback">
-            <h4>{{ reply.question }}</h4>
-            <p class="small muted">
-              {{ reply.provider }} / {{ reply.model }} · Assistant interpretation ·
-              {{ thinkingDescription(reply.output.request_settings) }}<br />{{ coverage(analysis) }}
-            </p>
-            @if (reply.output.request_context; as context) {
-              <p class="small muted">
-                Your question context:
-                {{ context.role ? roleTitles[context.role] : 'Selected passage' }} · PDF page
-                {{ context.citation.page }}
-              </p>
-            }
-            <p>{{ reply.output.answer }}</p>
-            @for (reference of reply.output.citations; track $index) {
-              <blockquote>{{ reference.quote }}</blockquote>
-              <button
-                class="citation-button"
-                (click)="cite.emit(reference); page.set(reference.page)"
-              >
-                View page {{ reference.page }}
-              </button>
-            }
-            @if (!reply.output.citations.length) {
-              <p class="notice small">
-                No supporting excerpt in this answer. Do not treat it as a source-backed finding.
-              </p>
-            }
-            <p class="limitation">{{ reply.output.limitation }}</p>
-          </article>
+        @if (answers().length) {
+          <h3 class="answers-heading">Previous answers ({{ answers().length }})</h3>
+          @for (reply of answers(); track reply.id) {
+            <details class="feedback" [open]="$first">
+              <summary>
+                <span class="feedback-question">{{ reply.question }}</span>
+                <span class="small muted"
+                  >{{ reply.provider }} / {{ reply.model }} ·
+                  {{ thinkingDescription(reply.output.request_settings) }}
+                  @if (reply.output.request_context; as context) {
+                    · {{ context.role ? roleTitles[context.role] : 'Selected passage' }} p.
+                    {{ context.citation.page }}
+                  }
+                </span>
+              </summary>
+              <p>{{ reply.output.answer }}</p>
+              @for (reference of reply.output.citations; track $index) {
+                <blockquote>{{ reference.quote }}</blockquote>
+                <button
+                  class="citation-button"
+                  (click)="cite.emit(reference); page.set(reference.page)"
+                >
+                  View page {{ reference.page }}
+                </button>
+              }
+              @if (!reply.output.citations.length) {
+                <p class="notice small">
+                  No supporting excerpt in this answer. Do not treat it as a source-backed finding.
+                </p>
+              }
+              <p class="limitation">{{ reply.output.limitation }}</p>
+            </details>
+          }
         }
       </section>
-      <details class="original-lenses">
-        <summary>Keep the four critical lenses in view</summary>
-        @if (analysis.attempt) {
-          <h4>Your original attempt</h4>
-          <p>{{ analysis.attempt }}</p>
-        }
-        @for (insight of analysis.output.insights; track insight.lens) {
-          <article class="insight">
-            <h4>{{ lensTitles[insight.lens] }}</h4>
-            <p>{{ insight.interpretation }}</p>
-            <p class="limitation">{{ insight.limitation }}</p>
-            @if (insight.author_excerpt; as excerpt) {
-              <button class="citation-button" (click)="cite.emit(excerpt); page.set(excerpt.page)">
-                View PDF page {{ excerpt.page }}
-              </button>
-            } @else {
-              <p class="notice small">No supporting excerpt identified in this scope.</p>
-            }
-          </article>
-        }
-        <p>{{ analysis.output.learning_feedback }}</p>
-        <p><strong>Next question:</strong> {{ analysis.output.next_question }}</p>
-      </details>
     }
   </aside>
 </section>
