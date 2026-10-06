@@ -1,3 +1,4 @@
+import { NgTemplateOutlet } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -27,7 +28,7 @@ import { UiIcon, type IconName } from '../ui-icon';
 type View = 'reading' | 'notebook' | 'compare' | 'connections';
 @Component({
   selector: 'app-workspace',
-  imports: [FormField, ReadingPanel, Connections, UiIcon],
+  imports: [FormField, NgTemplateOutlet, ReadingPanel, Connections, UiIcon],
   templateUrl: './workspace.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

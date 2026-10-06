@@ -107,7 +107,7 @@
           >
             Use excerpt in notebook
           </button>
-          <button class="quiet" (click)="editing.set(false)">Cancel</button>
+          <button (click)="editing.set(false)">Cancel</button>
         </div>
       }
     </div>
@@ -115,7 +115,7 @@
   <div class="pager">
     <div class="pager-row">
       <button
-        class="quiet"
+        class="icon-button"
         (click)="pageChange.emit(page() - 1)"
         [disabled]="page() <= 1"
         aria-label="Previous page"
@@ -126,7 +126,7 @@
         >Page <strong>{{ page() }}</strong> of {{ pages().length }}</span
       >
       <button
-        class="quiet"
+        class="icon-button"
         (click)="pageChange.emit(page() + 1)"
         [disabled]="page() >= pages().length"
         aria-label="Next page"

@@ -127,16 +127,12 @@
           </div>
         </dialog>
         <nav class="annotation-filters" aria-label="Annotation categories">
-          <button
-            class="quiet"
-            [attr.aria-pressed]="filter() === 'all'"
-            (click)="chooseRole('all')"
-          >
+          <button [attr.aria-pressed]="filter() === 'all'" (click)="chooseRole('all')">
             All annotations
           </button>
           @for (role of roles(); track role) {
             <button
-              [class]="'quiet role-chip role-' + role"
+              [class]="'role-chip role-' + role"
               [attr.aria-pressed]="filter() === role"
               (click)="chooseRole(role)"
             >
@@ -402,7 +398,6 @@
               <p>This passage has more than one possible role. Explore each interpretation:</p>
               @for (item of overlap(); track item.id) {
                 <button
-                  class="quiet"
                   [attr.aria-pressed]="activeId() === item.id"
                   (click)="activeId.set(item.id)"
                 >
@@ -432,11 +427,11 @@
             >
           </p>
           <div class="annotation-actions">
-            <button class="quiet" (click)="note('correction')">
+            <button (click)="note('correction')">
               <app-icon name="pencil" />Correct this reading</button
-            ><button class="quiet" (click)="note('application')">
+            ><button (click)="note('application')">
               <app-icon name="link" />Apply to my project</button
-            ><button class="quiet" (click)="note('attempt')">
+            ><button (click)="note('attempt')">
               <app-icon name="note" />Explain in my own words
             </button>
           </div>

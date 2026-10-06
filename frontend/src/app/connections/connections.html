@@ -62,7 +62,7 @@
         <p class="content-label">YOUR CONNECTION</p>
         <span class="badge">{{ row.relationship }}</span>
         <p>{{ row.evidence }}</p>
-        <button class="quiet danger" (click)="remove(row.id)">
+        <button class="danger" (click)="remove(row.id)">
           <app-icon name="trash" />Remove connection
         </button>
       </article>

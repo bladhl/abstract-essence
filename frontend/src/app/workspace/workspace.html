@@ -148,7 +148,7 @@
         </div>
         @if (error()) {
           <div class="error-banner" role="alert">
-            {{ error() }} <button class="quiet" (click)="reload()">Reconnect</button>
+            {{ error() }} <button (click)="reload()">Reconnect</button>
           </div>
         }
         @if (view() === 'connections') {
@@ -253,15 +253,7 @@
                 </p>
               </div>
               <div class="doc-actions">
-                <button class="icon-button" title="Export work" (click)="exportDocument()">
-                  <app-icon name="download" /><span class="sr-only">Export work</span></button
-                ><button
-                  class="icon-button danger"
-                  title="Delete document"
-                  (click)="confirmDelete.set(true)"
-                >
-                  <app-icon name="trash" /><span class="sr-only">Delete document</span>
-                </button>
+                <ng-container [ngTemplateOutlet]="documentActions" />
               </div>
               <div class="doc-confirm">
                 @if (confirmDelete()) {
@@ -271,7 +263,7 @@
                       first if you need a copy. Provider-retained data is not deleted.
                     </p>
                     <button class="danger" (click)="deleteDocument()">Delete permanently</button>
-                    <button class="quiet" (click)="confirmDelete.set(false)">Keep document</button>
+                    <button (click)="confirmDelete.set(false)">Keep document</button>
                   </div>
                 }
               </div>
@@ -286,11 +278,7 @@
                 </p>
               </div>
               <div class="document-actions">
-                <button class="quiet" (click)="exportDocument()">
-                  <app-icon name="download" />Export work</button
-                ><button class="quiet danger" (click)="confirmDelete.set(true)">
-                  <app-icon name="trash" />Delete
-                </button>
+                <ng-container [ngTemplateOutlet]="documentActions" />
               </div>
             </section>
             @if (confirmDelete()) {
@@ -300,7 +288,7 @@
                   first if you need a copy. Provider-retained data is not deleted.
                 </p>
                 <button class="danger" (click)="deleteDocument()">Delete permanently</button>
-                <button class="quiet" (click)="confirmDelete.set(false)">Keep document</button>
+                <button (click)="confirmDelete.set(false)">Keep document</button>
               </div>
             }
             <section class="surface notebook">
@@ -374,7 +362,7 @@
                       "
                     >
                       <app-icon name="eye" />View source</button
-                    ><button class="quiet danger" (click)="removeNote(note.id)">
+                    ><button class="danger" (click)="removeNote(note.id)">
                       <app-icon name="trash" />Delete note
                     </button>
                   </article>
@@ -441,3 +429,11 @@
     </div>
   </div>
 </div>
+<!-- One definition for the document actions shared by the reading room and the notebook. -->
+<ng-template #documentActions>
+  <button class="icon-button" title="Export work" (click)="exportDocument()">
+    <app-icon name="download" /><span class="sr-only">Export work</span></button
+  ><button class="icon-button danger" title="Delete document" (click)="confirmDelete.set(true)">
+    <app-icon name="trash" /><span class="sr-only">Delete document</span>
+  </button>
+</ng-template>
