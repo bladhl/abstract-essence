@@ -7,12 +7,44 @@
     <header class="document-heading">
       <ng-content select=".doc-title" />
       <div class="document-actions">
-        <ng-content select=".doc-actions" />
-        @if (current()) {
+        @if (current(); as reading) {
+          <button class="saved-reading-trigger" popovertarget="saved-readings-menu">
+            <app-icon name="library" /><span class="sr-only">Saved reading: </span
+            ><span class="saved-reading-label"
+              >Pages {{ reading.page_start }}–{{ reading.page_end }} ·
+              <span class="muted">{{ reading.provider }} / {{ reading.model }}</span></span
+            ><app-icon class="saved-reading-chevron" name="chevron" />
+          </button>
+          <div
+            #savedMenu
+            id="saved-readings-menu"
+            class="saved-readings-menu"
+            popover
+            role="group"
+            aria-label="Saved readings"
+          >
+            <p class="small muted">Saved readings ({{ detail().analyses.length }})</p>
+            @for (item of detail().analyses; track item.id) {
+              <button
+                class="saved-reading-option"
+                [attr.aria-current]="reading.id === item.id ? 'true' : null"
+                (click)="openAnalysis(item); savedMenu.hidePopover()"
+              >
+                <span
+                  ><strong>Pages {{ item.page_start }}–{{ item.page_end }}</strong
+                  ><small>{{ item.provider }} / {{ item.model }}</small></span
+                >
+                @if (reading.id === item.id) {
+                  <app-icon name="check" />
+                }
+              </button>
+            }
+          </div>
           <button class="secondary" aria-haspopup="dialog" (click)="setupOpen.set(true)">
             <app-icon name="plus" />Analyze another scope
           </button>
         }
+        <ng-content select=".doc-actions" />
       </div>
     </header>
     <div class="reading-toolbar">
@@ -20,12 +52,80 @@
         {{
           current()
             ? current()?.output?.reading_map
-              ? 'How this argument works'
+              ? 'Argument map'
               : 'Your saved four-lens reading'
             : 'Start with a close reading'
         }}
       </h2>
       @if (current(); as analysis) {
+        <button class="quiet about-reading" aria-haspopup="dialog" (click)="about.showModal()">
+          <app-icon name="info" />About this reading
+        </button>
+        <dialog
+          #about
+          class="setup-dialog argument-overview"
+          aria-labelledby="about-dialog-title"
+          aria-describedby="about-dialog-provenance"
+        >
+          <header class="setup-dialog-header">
+            <div>
+              <h2 id="about-dialog-title"><app-icon name="info" />About this reading</h2>
+              <p class="small muted" id="about-dialog-provenance">
+                Assistant interpretation · verify against the source
+              </p>
+            </div>
+            <button
+              class="quiet icon-button"
+              aria-label="Close about this reading"
+              (click)="about.close()"
+            >
+              <app-icon name="close" />
+            </button>
+          </header>
+          <div class="setup-dialog-body">
+            <section class="setup-step" aria-labelledby="about-summary-title">
+              <h3 id="about-summary-title"><app-icon name="book" />Summary</h3>
+              @if (analysis.output.reading_map; as map) {
+                <p class="map-summary">{{ map.overview }}</p>
+              } @else {
+                <p class="notice small">
+                  This earlier reading keeps its original four lenses. The visible links reuse saved
+                  excerpts; no contribution or limits annotation was invented.
+                </p>
+                @for (insight of analysis.output.insights; track insight.lens) {
+                  @if (!insight.author_excerpt) {
+                    <p class="notice small">
+                      <strong>{{ lensTitles[insight.lens] }}:</strong> No supporting excerpt
+                      identified.
+                      {{ insight.interpretation }}
+                    </p>
+                  }
+                }
+              }
+            </section>
+            <section class="setup-step" aria-labelledby="about-scope-title">
+              <h3 id="about-scope-title"><app-icon name="file" />Scope and model</h3>
+              <p class="scope-disclosure">
+                {{ coverage(analysis) }}<br />{{ analysis.provider }} / {{ analysis.model }} ·
+                {{ thinkingDescription(analysis.output.request_settings) }}
+              </p>
+            </section>
+            @if (analysis.output.reading_map?.gaps; as gaps) {
+              @if (gaps.length) {
+                <section class="setup-step map-gaps" aria-labelledby="about-gaps-title">
+                  <h3 id="about-gaps-title">
+                    <app-icon name="limits" />What these pages do not establish
+                  </h3>
+                  @for (gap of gaps; track gap.role) {
+                    <p class="small">
+                      <strong>{{ roleTitles[gap.role] }}:</strong> {{ gap.reason }}
+                    </p>
+                  }
+                </section>
+              }
+            }
+          </div>
+        </dialog>
         <nav class="annotation-filters" aria-label="Annotation categories">
           <button
             class="quiet"
@@ -44,7 +144,6 @@
             </button>
           }
         </nav>
-        <span class="coverage-chip small">{{ coverage(analysis) }}</span>
       }
     </div>
     <div class="reading-regions">
@@ -243,76 +342,17 @@
           <span>{{ processingLabel() }}</span>
         </p>
       }
-      @if (current(); as analysis) {
-        <section class="argument-overview surface" aria-label="Reading map overview">
-          <details class="reading-context">
-            <summary>Reading details & passages · {{ annotations().length }} source links</summary>
-            <p class="map-provenance small muted">
-              Assistant interpretation · verify against the source
-            </p>
-            <p class="scope-disclosure">
-              {{ coverage(analysis) }}<br />{{ analysis.provider }} / {{ analysis.model }} ·
-              {{ thinkingDescription(analysis.output.request_settings) }}
-            </p>
-            @if (analysis.output.reading_map; as map) {
-              <p class="map-summary">{{ map.overview }}</p>
-            } @else {
-              <p class="notice small">
-                This earlier reading keeps its original four lenses. The visible links reuse saved
-                excerpts; no contribution or limits annotation was invented.
-              </p>
-            }
-            @if (analysis.output.reading_map; as map) {
-              @if (map.gaps.length) {
-                <details class="map-gaps" open>
-                  <summary>What these pages do not establish ({{ map.gaps.length }})</summary>
-                  @for (gap of map.gaps; track gap.role) {
-                    <p class="small">
-                      <strong>{{ roleTitles[gap.role] }}:</strong> {{ gap.reason }}
-                    </p>
-                  }
-                </details>
-              }
-            }
-            @if (!analysis.output.reading_map) {
-              @for (insight of analysis.output.insights; track insight.lens) {
-                @if (!insight.author_excerpt) {
-                  <p class="notice small">
-                    <strong>{{ lensTitles[insight.lens] }}:</strong> No supporting excerpt
-                    identified.
-                    {{ insight.interpretation }}
-                  </p>
-                }
-              }
-            }
-            @if (!visibleAnnotations().length) {
-              <p class="muted small">
-                No supported source annotations in this selected scope. Missing roles are explained
-                below; they are not evidence of absence from the full document.
-              </p>
-            }
-          </details>
-        </section>
-      } @else {
+      @if (current() && !visibleAnnotations().length) {
+        <p class="muted small">
+          No supported source annotations in this selected scope. Missing roles are explained in
+          About this reading; they are not evidence of absence from the full document.
+        </p>
+      }
+      @if (!current()) {
         <p class="notice small">
           Your text is local. Create a reading map above when you are ready, or read and make your
           own notes without AI.
         </p>
-      }
-      @if (detail().analyses.length) {
-        <details class="saved-readings">
-          <summary>Saved readings ({{ detail().analyses.length }})</summary>
-          @for (item of detail().analyses; track item.id) {
-            <button
-              class="saved-reading"
-              [attr.aria-pressed]="current()?.id === item.id"
-              (click)="openAnalysis(item)"
-            >
-              Pages {{ item.page_start }}–{{ item.page_end }} · {{ item.provider }} /
-              {{ item.model }}
-            </button>
-          }
-        </details>
       }
     </div>
     <nav class="mobile-reading-switch" aria-label="Reading view">

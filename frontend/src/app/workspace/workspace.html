@@ -253,10 +253,14 @@
                 </p>
               </div>
               <div class="doc-actions">
-                <button class="quiet" (click)="exportDocument()">
-                  <app-icon name="download" />Export work</button
-                ><button class="quiet danger" (click)="confirmDelete.set(true)">
-                  <app-icon name="trash" />Delete
+                <button class="icon-button" title="Export work" (click)="exportDocument()">
+                  <app-icon name="download" /><span class="sr-only">Export work</span></button
+                ><button
+                  class="icon-button danger"
+                  title="Delete document"
+                  (click)="confirmDelete.set(true)"
+                >
+                  <app-icon name="trash" /><span class="sr-only">Delete document</span>
                 </button>
               </div>
               <div class="doc-confirm">

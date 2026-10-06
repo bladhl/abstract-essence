@@ -31,6 +31,8 @@
   --border: #2e2e2e;
   --card-border: rgba(255, 255, 255, 0.06);
   --control-border: #7a7a7a;
+  /* Text and icon identify these buttons, so their outline can stay quiet (WCAG 1.4.11). */
+  --button-border: rgba(255, 255, 255, 0.14);
   --field-background: #1a1a1a;
   --placeholder: #bebebe;
   --error-background: #363031;
@@ -91,6 +93,7 @@
   --border: #d0dbea;
   --card-border: #d0dbea;
   --control-border: #647991;
+  --button-border: #c5d2e3;
   --field-background: #ffffff;
   --placeholder: #51647c;
   --error-background: #fff0f3;
@@ -173,7 +176,7 @@ button {
   gap: 8px;
   min-height: 44px;
   padding: 8px 16px;
-  border: 1px solid var(--control-border);
+  border: 1px solid var(--button-border);
   border-radius: var(--control-radius);
   background: transparent;
   color: var(--text);
@@ -470,7 +473,7 @@ button.primary:disabled {
   gap: 8px;
   min-height: 44px;
   padding: 8px 16px;
-  border: 1px solid var(--control-border);
+  border: 1px solid var(--button-border);
   border-radius: var(--control-radius);
   background: transparent;
   color: var(--text);
@@ -883,6 +886,48 @@ textarea {
   resize: vertical;
   line-height: 1.6;
 }
+/* Fields already have a border: a 1px outline hugging it gives a 2px focus ring, not two rings. */
+:is(input:not([type='file']), select, textarea):focus-visible {
+  outline-width: 1px;
+  outline-offset: 0;
+  border-color: var(--focus);
+}
+/* Progressive enhancement: style the native picker like the saved-reading menu. */
+@supports (appearance: base-select) {
+  select,
+  ::picker(select) {
+    appearance: base-select;
+  }
+  select {
+    display: flex;
+    align-items: center;
+  }
+  select::picker-icon {
+    color: var(--muted);
+  }
+  ::picker(select) {
+    margin-block: 6px;
+    padding: 6px;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    box-shadow: 0 16px 40px rgb(0 0 0 / 0.4);
+  }
+  select option {
+    min-height: 40px;
+    padding: 8px 10px;
+    border-radius: var(--control-radius);
+  }
+  select option:is(:hover, :focus-visible) {
+    background: var(--surface-hover);
+    outline-offset: -3px;
+  }
+  select option:checked {
+    color: var(--accent-text);
+    font-weight: 600;
+  }
+}
 input::placeholder,
 textarea::placeholder {
   color: var(--placeholder);
@@ -1013,9 +1058,12 @@ app-reading-panel {
   display: contents;
 }
 .guided-reading .document-actions {
+  /* Own row: reading picker on the left, actions on the right, wrapping when narrow. */
+  flex: 1 1 100%;
   flex-direction: row;
   flex-wrap: wrap;
   align-items: center;
+  min-width: 0;
   margin-top: 0;
 }
 .document-actions button {
@@ -1033,13 +1081,6 @@ app-reading-panel {
 }
 .reading-toolbar h2 {
   font-size: 0.9375rem;
-}
-.coverage-chip {
-  margin-left: auto;
-  padding: 4px 12px;
-  border-radius: 999px;
-  background: var(--surface-subtle);
-  color: var(--muted);
 }
 /* Settings, notices, setup and passage lists share one bounded, self-scrolling region. */
 .reading-regions {
@@ -1202,25 +1243,12 @@ app-reading-panel {
     transform: rotate(360deg);
   }
 }
-.argument-overview {
-  padding: 0;
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-}
-.map-provenance {
-  margin-top: 4px;
-}
-.argument-overview > .scope-disclosure {
-  margin-block: 5px;
-}
-.reading-context > summary {
+.about-reading {
   color: var(--accent-text);
 }
 .map-summary {
   font-size: 1rem;
   line-height: 1.65;
-  margin: 8px 0 16px;
   max-width: 75ch;
   overflow-wrap: anywhere;
 }
@@ -1233,7 +1261,7 @@ app-reading-panel {
 .annotation-filters button {
   min-height: 44px;
   padding: 6px 16px;
-  border: 1px solid var(--control-border);
+  border: 1px solid var(--button-border);
   border-radius: 999px;
   font-weight: 600;
 }
@@ -1254,10 +1282,6 @@ app-reading-panel {
   background: var(--chip-color);
   border-color: var(--role-color);
   box-shadow: inset 0 0 0 1px var(--role-color);
-}
-.map-gaps {
-  margin-top: 10px;
-  border-top: 1px solid var(--border);
 }
 .map-gaps p {
   margin-block: 8px;
@@ -1344,7 +1368,7 @@ app-source-reader {
 .pager .quiet {
   width: 44px;
   padding: 0;
-  border-color: var(--control-border);
+  border-color: var(--button-border);
 }
 .pager .quiet:disabled {
   border-color: var(--border);
@@ -1539,21 +1563,80 @@ app-source-reader {
 .feedback blockquote {
   margin-top: 14px;
 }
-.saved-readings {
-  padding-block: 4px;
-  margin-top: 8px;
-  border-top: 1px solid var(--border);
-}
-.saved-reading {
-  display: flex;
+.saved-reading-trigger {
+  anchor-name: --saved-reading;
+  flex: 0 1 auto;
   justify-content: flex-start;
-  text-align: left;
-  margin-top: 8px;
-  max-width: 100%;
+  gap: 8px;
+  min-width: 0;
+  margin-right: auto;
+  padding-inline: 12px;
+  background: transparent;
+  font-weight: 600;
 }
-.saved-reading[aria-pressed='true'] {
+.saved-reading-trigger:not(:disabled):hover {
+  background: var(--surface-hover);
+}
+.saved-reading-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.saved-reading-label .muted {
+  font-weight: 400;
+}
+.saved-reading-chevron {
+  rotate: 90deg;
+}
+.saved-readings-menu {
+  position-anchor: --saved-reading;
+  position-try-fallbacks: flip-block;
+  inset: auto;
+  top: anchor(bottom);
+  left: anchor(left);
+  width: max(anchor-size(width), 18rem);
+  max-width: calc(100vw - 32px);
+  margin: 6px 0 0;
+  padding: 6px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  box-shadow: 0 16px 40px rgb(0 0 0 / 0.4);
+}
+@supports not (anchor-name: --a) {
+  .saved-readings-menu {
+    inset: 0;
+    margin: auto;
+    height: fit-content;
+  }
+}
+.saved-readings-menu > p {
+  padding: 6px 10px;
+}
+.saved-reading-option {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border-color: transparent;
+}
+.saved-reading-option:not(:disabled):hover {
+  background: var(--surface-hover);
+}
+.saved-reading-option[aria-current='true'] {
   background: var(--surface-hover);
   color: var(--accent-text);
+}
+.saved-reading-option > span {
+  display: grid;
+  min-width: 0;
+}
+.saved-reading-option small {
+  color: var(--muted);
+  font-weight: 400;
 }
 .mobile-reading-switch {
   display: none;
@@ -1735,7 +1818,7 @@ td {
     gap: 4px;
     padding: 4px;
     margin-block: 4px 8px;
-    border: 1px solid var(--control-border);
+    border: 1px solid var(--button-border);
     border-radius: 8px;
     background: var(--surface-subtle);
   }
@@ -1854,17 +1937,11 @@ td {
   .reading-toolbar h2 {
     font-size: 1rem;
   }
-  .argument-overview {
-    padding-bottom: 8px;
-  }
   .annotation-filters {
     flex: 1 1 100%;
     flex-wrap: nowrap;
     overflow-x: auto;
     padding: 4px;
-  }
-  .coverage-chip {
-    margin-left: 0;
   }
   .annotation-filters button {
     flex: 0 0 auto;
@@ -1875,9 +1952,6 @@ td {
   }
   .surface {
     padding: 18px;
-  }
-  .argument-overview.surface {
-    padding: 0 0 8px;
   }
   .welcome {
     margin: 24px 0 34px;
@@ -1915,8 +1989,8 @@ td {
   .error-banner > button {
     margin-top: 10px;
   }
-  .saved-reading {
-    width: 100%;
+  .saved-reading-trigger {
+    flex-basis: 100%;
   }
   .note .danger {
     margin-left: 0;

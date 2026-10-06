@@ -204,8 +204,7 @@ test('document-first map requires consent, links highlights and contextual quest
   await expect(page.getByRole('checkbox')).not.toBeChecked();
   await page.getByRole('checkbox').check();
   await analyze.click();
-  await expect(page.getByRole('heading', { name: 'How this argument works' })).toBeVisible();
-  await page.locator('.reading-context > summary').click();
+  await expect(page.getByRole('heading', { name: 'Argument map' })).toBeVisible();
   const source = page.locator('app-source-reader');
   await source
     .getByRole('button', {
@@ -395,9 +394,6 @@ for (const theme of ['dark', 'light'] as const) {
       );
     }
 
-    await page.getByText('Saved readings (1)', { exact: true }).click();
-    await page.getByRole('button', { name: 'Pages 1–1 · openai / test-model' }).click();
-    await page.locator('.reading-context > summary').click();
     await page.locator('.annotation-mark').first().click();
     await expect(page.locator('mark').first()).toContainText(quote);
     await page.getByRole('button', { name: 'Analyze another scope' }).click();
@@ -457,7 +453,7 @@ test('dark interactive targets are at least 44 by 44 CSS pixels (WCAG 2.5.5)', a
     page.getByRole('button', { name: 'Create reading map', exact: true }),
     page.getByRole('button', { name: 'Previous page' }),
     page.getByRole('button', { name: 'Next page' }),
-    page.locator('.reading-context > summary'),
+    page.getByRole('button', { name: 'About this reading' }),
     page.getByRole('button', { name: 'Export work' }),
   ];
   for (const target of targets) {
@@ -603,8 +599,9 @@ test('verified thinking selection resets consent, reaches analysis and questions
     if (request.url().endsWith('/feedback')) questionRequests.push(request.postDataJSON());
   });
   await mockWorkspace(page, true, true, true);
-  await page.locator('.reading-context > summary').click();
+  await page.getByRole('button', { name: 'About this reading' }).click();
   await expect(page.getByText('Thinking: Not recorded for this earlier result')).toBeVisible();
+  await page.getByRole('button', { name: 'Close about this reading' }).click();
   await page.getByRole('button', { name: 'Analyze another scope' }).click();
   await page
     .getByRole('combobox', { name: 'AI destination', exact: true })
@@ -732,7 +729,7 @@ test('PDF import opens a bounded local-first setup, never an automatic provider 
   await page.getByLabel('AI destination').selectOption('google:test-model');
   await page.getByRole('checkbox').check();
   await page.getByRole('button', { name: 'Create reading map', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'How this argument works' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Argument map' })).toBeVisible();
   expect(calls).toBe(1);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
